@@ -1,0 +1,203 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag'
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      release_id: ${{ steps.create_release.outputs.id }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Get version
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          echo "version=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+        else
+          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Get previous tag
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+        
+        if [ -n "$PREVIOUS_TAG" ]; then
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          git log --pretty=format:"- %s (%h)" $PREVIOUS_TAG..HEAD >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        else
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "- Initial release" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.version.outputs.version }}
+        release_name: Release ${{ steps.version.outputs.version }}
+        body: |
+          ## What's Changed
+          ${{ steps.changelog.outputs.changelog }}
+          
+          ## Docker Images
+          - **Production**: `ghcr.io/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}`
+          - **Development**: `ghcr.io/${{ env.IMAGE_NAME }}-dev:${{ steps.version.outputs.version }}`
+          - **Test**: `ghcr.io/${{ env.IMAGE_NAME }}-test:${{ steps.version.outputs.version }}`
+          
+          ## Quick Start
+          ```bash
+          # Pull the image
+          docker pull ghcr.io/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+          
+          # Run the container
+          docker run -d --name wb-slots-app -p 3000:3000 ghcr.io/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+          ```
+          
+          ## Full Changelog
+          ${{ steps.changelog.outputs.changelog }}
+        draft: false
+        prerelease: ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }}
+
+  build-images:
+    runs-on: ubuntu-latest
+    needs: create-release
+    strategy:
+      matrix:
+        target: [prod, dev, test]
+        platform: [linux/amd64, linux/arm64]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}${{ matrix.target != 'prod' && format('-{0}', matrix.target) || '' }}
+        tags: |
+          type=raw,value=${{ github.ref_name }}
+          type=raw,value=latest,enable=${{ matrix.target == 'prod' }}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: ${{ matrix.platform }}
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        target: ${{ matrix.target == 'prod' && 'runner' || matrix.target == 'dev' && 'builder' || 'builder' }}
+        cache-from: type=gha,key=${{ matrix.target }}-${{ github.sha }}
+        cache-to: type=gha,mode=max,key=${{ matrix.target }}-${{ github.sha }}
+        build-args: |
+          NODE_ENV=${{ matrix.target == 'prod' && 'production' || matrix.target == 'dev' && 'development' || 'test' }}
+          NPM_CONFIG_LOGLEVEL=${{ matrix.target == 'prod' && 'warn' || 'debug' }}
+          NPM_CONFIG_PRODUCTION=${{ matrix.target == 'prod' && 'true' || 'false' }}
+
+  upload-assets:
+    runs-on: ubuntu-latest
+    needs: [create-release, build-images]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download Docker images
+      run: |
+        docker pull ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+        docker pull ghcr.io/${{ env.IMAGE_NAME }}-dev:${{ github.ref_name }}
+        docker pull ghcr.io/${{ env.IMAGE_NAME }}-test:${{ github.ref_name }}
+
+    - name: Save Docker images
+      run: |
+        docker save ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }} | gzip > wb-slots-prod-${{ github.ref_name }}.tar.gz
+        docker save ghcr.io/${{ env.IMAGE_NAME }}-dev:${{ github.ref_name }} | gzip > wb-slots-dev-${{ github.ref_name }}.tar.gz
+        docker save ghcr.io/${{ env.IMAGE_NAME }}-test:${{ github.ref_name }} | gzip > wb-slots-test-${{ github.ref_name }}.tar.gz
+
+    - name: Upload Docker images to release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./wb-slots-prod-${{ github.ref_name }}.tar.gz
+        asset_name: wb-slots-prod-${{ github.ref_name }}.tar.gz
+        asset_content_type: application/gzip
+
+    - name: Upload development image to release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./wb-slots-dev-${{ github.ref_name }}.tar.gz
+        asset_name: wb-slots-dev-${{ github.ref_name }}.tar.gz
+        asset_content_type: application/gzip
+
+    - name: Upload test image to release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./wb-slots-test-${{ github.ref_name }}.tar.gz
+        asset_name: wb-slots-test-${{ github.ref_name }}.tar.gz
+        asset_content_type: application/gzip
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [create-release, build-images, upload-assets]
+    if: always()
+
+    steps:
+    - name: Notify on success
+      if: needs.create-release.result == 'success' && needs.build-images.result == 'success'
+      run: |
+        echo "✅ Release ${{ github.ref_name }} created successfully!"
+        echo "Docker images:"
+        echo "- ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}"
+        echo "- ghcr.io/${{ env.IMAGE_NAME }}-dev:${{ github.ref_name }}"
+        echo "- ghcr.io/${{ env.IMAGE_NAME }}-test:${{ github.ref_name }}"
+
+    - name: Notify on failure
+      if: needs.create-release.result == 'failure' || needs.build-images.result == 'failure'
+      run: |
+        echo "❌ Release creation failed!"
+        exit 1

@@ -1,0 +1,141 @@
+name: Version Bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+        - patch
+        - minor
+        - major
+        - prerelease
+      prerelease_type:
+        description: 'Prerelease type (if prerelease selected)'
+        required: false
+        default: 'beta'
+        type: choice
+        options:
+        - alpha
+        - beta
+        - rc
+
+jobs:
+  version-bump:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Configure Git
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Get current version
+      id: current_version
+      run: |
+        CURRENT_VERSION=$(node -p "require('./package.json').version")
+        echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+        echo "Current version: $CURRENT_VERSION"
+
+    - name: Bump version
+      id: bump_version
+      run: |
+        if [ "${{ github.event.inputs.bump_type }}" == "prerelease" ]; then
+          NEW_VERSION=$(npm version prerelease --preid=${{ github.event.inputs.prerelease_type }} --no-git-tag-version)
+        else
+          NEW_VERSION=$(npm version ${{ github.event.inputs.bump_type }} --no-git-tag-version)
+        fi
+        
+        echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "New version: $NEW_VERSION"
+
+    - name: Update CHANGELOG
+      run: |
+        # Create or update CHANGELOG.md
+        if [ ! -f "CHANGELOG.md" ]; then
+          echo "# Changelog" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "All notable changes to this project will be documented in this file." >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+        fi
+        
+        # Add new version entry
+        sed -i "2i\\n## [${{ steps.bump_version.outputs.new_version }}] - $(date +%Y-%m-%d)\\n\\n### Added\\n- \n\\n### Changed\\n- \n\\n### Fixed\\n- \n\\n" CHANGELOG.md
+
+    - name: Update docker-image.yml
+      run: |
+        # Update version in docker-image.yml
+        sed -i "s/version: \".*\"/version: \"${{ steps.bump_version.outputs.new_version }}\"/" docker-image.yml
+
+    - name: Create Pull Request
+      id: create_pr
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: "chore: bump version to ${{ steps.bump_version.outputs.new_version }}"
+        title: "Version Bump: ${{ steps.current_version.outputs.current_version }} → ${{ steps.bump_version.outputs.new_version }}"
+        body: |
+          ## Version Bump
+          
+          **Type**: ${{ github.event.inputs.bump_type }}
+          **From**: ${{ steps.current_version.outputs.current_version }}
+          **To**: ${{ steps.bump_version.outputs.new_version }}
+          
+          ## Changes
+          - Updated `package.json` version
+          - Updated `docker-image.yml` version
+          - Updated `CHANGELOG.md`
+          
+          ## Next Steps
+          - [ ] Review changes
+          - [ ] Merge PR
+          - [ ] Create release tag
+          - [ ] Deploy to production
+          
+          ## Checklist
+          - [x] Version bumped
+          - [x] CHANGELOG updated
+          - [x] Docker image config updated
+          - [ ] Tests passing
+          - [ ] Security scan clean
+          - [ ] Documentation updated
+        branch: version-bump-${{ steps.bump_version.outputs.new_version }}
+        delete-branch: true
+
+    - name: Comment on PR
+      if: steps.create_pr.outputs.pull-request-number
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: ${{ steps.create_pr.outputs.pull-request-number }},
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: '🚀 Version bump PR created! Please review and merge to continue with the release process.'
+          })
+
+    - name: Output information
+      run: |
+        echo "Version bumped from ${{ steps.current_version.outputs.current_version }} to ${{ steps.bump_version.outputs.new_version }}"
+        echo "Pull Request: ${{ steps.create_pr.outputs.pull-request-url }}"

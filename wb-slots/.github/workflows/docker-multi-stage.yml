@@ -1,0 +1,296 @@
+name: Multi-stage Docker Build
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - all
+        - dev
+        - prod
+        - test
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-dev:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.build_type == 'dev' || github.event.inputs.build_type == 'all' || github.event_name == 'pull_request'
+    outputs:
+      image: ${{ steps.meta.outputs.tags }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dev
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=raw,value=dev
+
+    - name: Build and push development image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        target: builder
+        cache-from: type=gha,key=dev-${{ github.sha }}
+        cache-to: type=gha,mode=max,key=dev-${{ github.sha }}
+        build-args: |
+          NODE_ENV=development
+          NPM_CONFIG_LOGLEVEL=debug
+
+  build-prod:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.build_type == 'prod' || github.event.inputs.build_type == 'all' || github.event_name == 'push'
+    outputs:
+      image: ${{ steps.meta.outputs.tags }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push production image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        target: runner
+        cache-from: type=gha,key=prod-${{ github.sha }}
+        cache-to: type=gha,mode=max,key=prod-${{ github.sha }}
+        build-args: |
+          NODE_ENV=production
+          NPM_CONFIG_LOGLEVEL=warn
+          NPM_CONFIG_PRODUCTION=true
+
+  build-test:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.build_type == 'test' || github.event.inputs.build_type == 'all' || github.event_name == 'pull_request'
+    outputs:
+      image: ${{ steps.meta.outputs.tags }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-test
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=raw,value=test
+
+    - name: Build and push test image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        target: builder
+        cache-from: type=gha,key=test-${{ github.sha }}
+        cache-to: type=gha,mode=max,key=test-${{ github.sha }}
+        build-args: |
+          NODE_ENV=test
+          NPM_CONFIG_LOGLEVEL=debug
+
+  test-unit:
+    runs-on: ubuntu-latest
+    needs: build-test
+    if: always() && needs.build-test.result == 'success'
+
+    steps:
+    - name: Run unit tests
+      run: |
+        docker run --rm ${{ needs.build-test.outputs.image }} npm test
+
+  test-integration:
+    runs-on: ubuntu-latest
+    needs: build-test
+    if: always() && needs.build-test.result == 'success'
+
+    steps:
+    - name: Run integration tests
+      run: |
+        docker run --rm ${{ needs.build-test.outputs.image }} npm run test:integration
+
+  test-e2e:
+    runs-on: ubuntu-latest
+    needs: build-test
+    if: always() && needs.build-test.result == 'success'
+
+    steps:
+    - name: Run E2E tests
+      run: |
+        docker run --rm --shm-size=2g ${{ needs.build-test.outputs.image }} npm run test:e2e
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: [build-prod, build-dev]
+    if: always() && (needs.build-prod.result == 'success' || needs.build-dev.result == 'success')
+
+    steps:
+    - name: Run Trivy vulnerability scanner on production image
+      if: needs.build-prod.result == 'success'
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ needs.build-prod.outputs.image }}
+        format: 'sarif'
+        output: 'trivy-prod-results.sarif'
+
+    - name: Run Trivy vulnerability scanner on development image
+      if: needs.build-dev.result == 'success'
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ needs.build-dev.outputs.image }}
+        format: 'sarif'
+        output: 'trivy-dev-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: |
+          trivy-prod-results.sarif
+          trivy-dev-results.sarif
+
+  performance-test:
+    runs-on: ubuntu-latest
+    needs: build-prod
+    if: always() && needs.build-prod.result == 'success' && github.event_name == 'push'
+
+    steps:
+    - name: Run performance tests
+      run: |
+        docker run --rm -p 3000:3000 -d --name wb-slots-perf-test ${{ needs.build-prod.outputs.image }}
+        sleep 30
+        # Add your performance testing commands here
+        # Example: k6 run performance-test.js
+        docker stop wb-slots-perf-test
+        docker rm wb-slots-perf-test
+
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: [build-dev, test-unit, test-integration]
+    if: always() && needs.build-dev.result == 'success' && github.ref == 'refs/heads/develop'
+
+    steps:
+    - name: Deploy to staging
+      run: |
+        echo "Deploying development image to staging..."
+        echo "Image: ${{ needs.build-dev.outputs.image }}"
+        # Add your staging deployment commands here
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: [build-prod, security-scan, test-unit, test-integration, test-e2e]
+    if: always() && needs.build-prod.result == 'success' && startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+    - name: Deploy to production
+      run: |
+        echo "Deploying production image to production..."
+        echo "Image: ${{ needs.build-prod.outputs.image }}"
+        # Add your production deployment commands here
+
+  cleanup:
+    runs-on: ubuntu-latest
+    needs: [build-dev, build-prod, build-test]
+    if: always()
+
+    steps:
+    - name: Clean up old images
+      run: |
+        echo "Cleaning up old Docker images..."
+        # Add cleanup commands here if needed
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [build-dev, build-prod, build-test, test-unit, test-integration, test-e2e, security-scan]
+    if: always()
+
+    steps:
+    - name: Notify on success
+      if: needs.build-prod.result == 'success' || needs.build-dev.result == 'success'
+      run: |
+        echo "✅ Docker images built successfully!"
+        if [ "${{ needs.build-prod.result }}" == "success" ]; then
+          echo "Production image: ${{ needs.build-prod.outputs.image }}"
+        fi
+        if [ "${{ needs.build-dev.result }}" == "success" ]; then
+          echo "Development image: ${{ needs.build-dev.outputs.image }}"
+        fi
+
+    - name: Notify on failure
+      if: needs.build-prod.result == 'failure' || needs.build-dev.result == 'failure'
+      run: |
+        echo "❌ Docker build failed!"
+        exit 1

@@ -1,0 +1,185 @@
+name: Error Handler
+
+on:
+  workflow_run:
+    workflows: ["Docker Build and Push", "Multi-stage Docker Build", "Security Scan"]
+    types: [completed]
+
+jobs:
+  handle-failure:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Get workflow details
+      id: workflow_info
+      run: |
+        echo "workflow_name=${{ github.event.workflow_run.name }}" >> $GITHUB_OUTPUT
+        echo "workflow_url=${{ github.event.workflow_run.html_url }}" >> $GITHUB_OUTPUT
+        echo "commit_sha=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
+        echo "branch=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_OUTPUT
+
+    - name: Get commit details
+      id: commit_info
+      run: |
+        COMMIT_MESSAGE=$(git log -1 --pretty=format:"%s" ${{ github.event.workflow_run.head_sha }})
+        COMMIT_AUTHOR=$(git log -1 --pretty=format:"%an" ${{ github.event.workflow_run.head_sha }})
+        echo "commit_message=$COMMIT_MESSAGE" >> $GITHUB_OUTPUT
+        echo "commit_author=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
+
+    - name: Create issue
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const title = `🚨 CI/CD Failure: ${{ steps.workflow_info.outputs.workflow_name }}`;
+          const body = `## Workflow Failure
+          
+          **Workflow**: ${{ steps.workflow_info.outputs.workflow_name }}
+          **Branch**: ${{ steps.workflow_info.outputs.branch }}
+          **Commit**: ${{ steps.workflow_info.outputs.commit_sha }}
+          **Author**: ${{ steps.commit_info.outputs.commit_author }}
+          **Message**: ${{ steps.commit_info.outputs.commit_message }}
+          **URL**: ${{ steps.workflow_info.outputs.workflow_url }}
+          
+          ## Next Steps
+          - [ ] Check the workflow logs
+          - [ ] Identify the root cause
+          - [ ] Fix the issue
+          - [ ] Re-run the workflow
+          - [ ] Close this issue
+          
+          ## Common Issues
+          - **Docker build fails**: Check Dockerfile syntax and dependencies
+          - **Tests fail**: Check test files and dependencies
+          - **Security scan fails**: Review security vulnerabilities
+          - **Publish fails**: Check registry credentials and permissions
+          
+          ## Labels
+          - `ci-cd-failure`
+          - `${{ steps.workflow_info.outputs.workflow_name.toLowerCase().replace(/\s+/g, '-') }}`
+          - `${{ steps.workflow_info.outputs.branch }}`
+          
+          ---
+          *This issue was automatically created by the Error Handler workflow.*`;
+          
+          const labels = [
+            'ci-cd-failure',
+            '${{ steps.workflow_info.outputs.workflow_name.toLowerCase().replace(/\s+/g, '-') }}',
+            '${{ steps.workflow_info.outputs.branch }}'
+          ];
+          
+          const issue = await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: title,
+            body: body,
+            labels: labels,
+            assignees: ['${{ github.actor }}']
+          });
+          
+          console.log(`Created issue #${issue.data.number}: ${issue.data.html_url}`);
+
+    - name: Comment on commit
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const comment = `🚨 **CI/CD Failure Detected**
+          
+          Workflow: ${{ steps.workflow_info.outputs.workflow_name }}
+          Status: Failed
+          URL: ${{ steps.workflow_info.outputs.workflow_url }}
+          
+          An issue has been created to track this failure.`;
+          
+          await github.rest.repos.createCommitComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            commit_sha: '${{ github.event.workflow_run.head_sha }}',
+            body: comment
+          });
+
+    - name: Notify on Slack (if configured)
+      if: env.SLACK_WEBHOOK
+      uses: 8398a7/action-slack@v3
+      with:
+        status: failure
+        text: |
+          🚨 CI/CD Failure in ${{ steps.workflow_info.outputs.workflow_name }}
+          
+          Branch: ${{ steps.workflow_info.outputs.branch }}
+          Commit: ${{ steps.workflow_info.outputs.commit_sha }}
+          Author: ${{ steps.commit_info.outputs.commit_author }}
+          
+          Check the workflow: ${{ steps.workflow_info.outputs.workflow_url }}
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+  handle-success:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Get workflow details
+      id: workflow_info
+      run: |
+        echo "workflow_name=${{ github.event.workflow_run.name }}" >> $GITHUB_OUTPUT
+        echo "workflow_url=${{ github.event.workflow_run.html_url }}" >> $GITHUB_OUTPUT
+        echo "commit_sha=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
+        echo "branch=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_OUTPUT
+
+    - name: Close related issues
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const issues = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: 'open',
+            labels: 'ci-cd-failure'
+          });
+          
+          for (const issue of issues.data) {
+            if (issue.title.includes('${{ steps.workflow_info.outputs.workflow_name }}')) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `✅ **Workflow Fixed**
+                
+                The workflow has been successfully fixed and is now passing.
+                
+                **Workflow**: ${{ steps.workflow_info.outputs.workflow_name }}
+                **URL**: ${{ steps.workflow_info.outputs.workflow_url }}
+                
+                This issue can now be closed.`
+              });
+              
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed'
+              });
+              
+              console.log(`Closed issue #${issue.number}`);
+            }
+          }
+
+    - name: Notify on Slack (if configured)
+      if: env.SLACK_WEBHOOK
+      uses: 8398a7/action-slack@v3
+      with:
+        status: success
+        text: |
+          ✅ CI/CD Success: ${{ steps.workflow_info.outputs.workflow_name }}
+          
+          Branch: ${{ steps.workflow_info.outputs.branch }}
+          Commit: ${{ steps.workflow_info.outputs.commit_sha }}
+          
+          Workflow: ${{ steps.workflow_info.outputs.workflow_url }}
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}

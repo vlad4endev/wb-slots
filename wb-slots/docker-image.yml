@@ -1,0 +1,329 @@
+# Docker Image Configuration for WB Slots
+# This file contains configuration for building and managing Docker images
+
+version: '3.8'
+
+# Image build configuration
+image:
+  name: wb-slots-app
+  tag: latest
+  registry: # Optional: your-registry.com/wb-slots
+  context: .
+  dockerfile: Dockerfile
+  
+  # Build arguments
+  build_args:
+    NODE_ENV: production
+    NPM_CONFIG_LOGLEVEL: warn
+    NPM_CONFIG_PRODUCTION: true
+    
+  # Build options
+  build_options:
+    no_cache: false
+    pull: true
+    rm: true
+    force_rm: true
+    
+  # Labels for the image
+  labels:
+    maintainer: "WB Slots Team"
+    version: "1.0.0"
+    description: "WB Slots - Automated slot booking system for Wildberries"
+    org.opencontainers.image.title: "WB Slots"
+    org.opencontainers.image.description: "Automated slot booking system for Wildberries"
+    org.opencontainers.image.version: "1.0.0"
+    org.opencontainers.image.created: "2024-01-01T00:00:00Z"
+    org.opencontainers.image.source: "https://github.com/your-org/wb-slots"
+    org.opencontainers.image.licenses: "MIT"
+
+# Multi-stage build configuration
+stages:
+  base:
+    image: node:18-alpine
+    description: "Base Node.js image with Alpine Linux"
+    
+  deps:
+    image: node:18-alpine
+    description: "Dependencies installation stage"
+    commands:
+      - "apk add --no-cache libc6-compat"
+      - "npm ci --only=production"
+      - "npm cache clean --force"
+      
+  builder:
+    image: node:18-alpine
+    description: "Application build stage"
+    commands:
+      - "npx prisma generate"
+      - "npm run build"
+      
+  runner:
+    image: node:18-alpine
+    description: "Production runtime stage"
+    user: "nextjs:nodejs"
+    expose_ports:
+      - 3000
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: "0.0.0.0"
+
+# Security configuration
+security:
+  # User to run the container
+  user: "nextjs:nodejs"
+  
+  # Security options
+  security_opt:
+    - "no-new-privileges:true"
+    
+  # Read-only root filesystem
+  read_only: true
+  
+  # Capabilities to drop
+  cap_drop:
+    - ALL
+    
+  # Capabilities to add
+  cap_add:
+    - CHOWN
+    - SETGID
+    - SETUID
+
+# Resource limits
+resources:
+  memory:
+    limit: "1g"
+    reservation: "512m"
+  cpus:
+    limit: "1.0"
+    reservation: "0.5"
+    
+# Health check configuration
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 40s
+
+# Environment variables
+environment:
+  # Database
+  DATABASE_URL: "postgresql://postgres:password@postgres:5432/wb_slots?schema=public"
+  
+  # Redis
+  REDIS_URL: "redis://redis:6379"
+  
+  # JWT
+  JWT_SECRET: "your-super-secret-jwt-key-here-change-in-production"
+  JWT_EXPIRES_IN: "7d"
+  
+  # Encryption
+  ENCRYPTION_KEY: "your-32-byte-base64-encryption-key-here"
+  
+  # App
+  APP_BASE_URL: "http://localhost:3000"
+  NODE_ENV: "production"
+  
+  # Logging
+  LOG_LEVEL: "info"
+  
+  # Rate limiting
+  RATE_LIMIT_MAX: "100"
+  RATE_LIMIT_WINDOW: "900000"
+
+# Ports configuration
+ports:
+  - "3000:3000"
+  
+# Volumes configuration
+volumes:
+  - name: "app_data"
+    mount_path: "/app/data"
+    type: "tmpfs"
+    options:
+      size: "100m"
+      
+# Networks configuration
+networks:
+  - name: "wb-slots-network"
+    driver: "overlay"
+    attachable: true
+
+# Dependencies
+dependencies:
+  - name: "postgres"
+    image: "postgres:15-alpine"
+    environment:
+      POSTGRES_DB: "wb_slots"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "password"
+    volumes:
+      - "postgres_data:/var/lib/postgresql/data"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      
+  - name: "redis"
+    image: "redis:7-alpine"
+    volumes:
+      - "redis_data:/data"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# Build scripts
+scripts:
+  build:
+    - "docker build -t wb-slots-app:latest ."
+    
+  build_dev:
+    - "docker build -t wb-slots-app:dev --target builder ."
+    
+  build_prod:
+    - "docker build -t wb-slots-app:prod --target runner ."
+    
+  push:
+    - "docker tag wb-slots-app:latest your-registry.com/wb-slots:latest"
+    - "docker push your-registry.com/wb-slots:latest"
+    
+  pull:
+    - "docker pull your-registry.com/wb-slots:latest"
+    
+  run:
+    - "docker run -d --name wb-slots-app -p 3000:3000 wb-slots-app:latest"
+    
+  run_dev:
+    - "docker run -d --name wb-slots-app-dev -p 3000:3000 -v $(pwd):/app wb-slots-app:dev"
+    
+  stop:
+    - "docker stop wb-slots-app"
+    - "docker rm wb-slots-app"
+    
+  logs:
+    - "docker logs -f wb-slots-app"
+    
+  exec:
+    - "docker exec -it wb-slots-app sh"
+    
+  clean:
+    - "docker rmi wb-slots-app:latest"
+    - "docker system prune -f"
+
+# Testing configuration
+testing:
+  unit:
+    command: "npm test"
+    image: "wb-slots-app:test"
+    
+  integration:
+    command: "npm run test:integration"
+    image: "wb-slots-app:test"
+    
+  e2e:
+    command: "npm run test:e2e"
+    image: "wb-slots-app:test"
+
+# Monitoring configuration
+monitoring:
+  metrics:
+    port: 9090
+    path: "/metrics"
+    
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+      
+  tracing:
+    enabled: true
+    jaeger_endpoint: "http://jaeger:14268/api/traces"
+
+# Backup configuration
+backup:
+  database:
+    command: "pg_dump -U postgres wb_slots"
+    schedule: "0 2 * * *"  # Daily at 2 AM
+    
+  redis:
+    command: "redis-cli BGSAVE"
+    schedule: "0 3 * * *"  # Daily at 3 AM
+    
+  volumes:
+    - "postgres_data"
+    - "redis_data"
+    - "app_data"
+
+# Update configuration
+update:
+  strategy: "rolling"
+  max_unavailable: 1
+  max_surge: 1
+  
+  pre_update:
+    - "docker pull wb-slots-app:latest"
+    - "docker stop wb-slots-app"
+    
+  post_update:
+    - "docker start wb-slots-app"
+    - "docker service update --image wb-slots-app:latest wb-slots_app"
+
+# Registry configuration
+registry:
+  url: "your-registry.com"
+  username: "your-username"
+  password: "your-password"
+  
+  repositories:
+    - "wb-slots"
+    - "wb-slots-dev"
+    - "wb-slots-prod"
+    
+  tags:
+    latest: "main"
+    dev: "develop"
+    prod: "production"
+    staging: "staging"
+
+# CI/CD configuration
+cicd:
+  build_triggers:
+    - "push"
+    - "pull_request"
+    - "tag"
+    
+  build_context:
+    - "src/"
+    - "package.json"
+    - "Dockerfile"
+    - "docker-image.yml"
+    
+  test_stages:
+    - "lint"
+    - "unit"
+    - "integration"
+    - "e2e"
+    
+  deploy_stages:
+    - "staging"
+    - "production"
+    
+  notifications:
+    slack:
+      webhook: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+      channel: "#deployments"
+      
+    email:
+      smtp_server: "smtp.gmail.com"
+      smtp_port: 587
+      username: "your-email@gmail.com"
+      password: "your-app-password"
+      recipients:
+        - "admin@your-domain.com"
+        - "devops@your-domain.com"

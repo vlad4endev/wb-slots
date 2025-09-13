@@ -1,0 +1,72 @@
+name: Deploy Documentation
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build documentation
+      run: |
+        # Create documentation directory
+        mkdir -p docs
+        
+        # Copy README files
+        cp README.md docs/
+        cp README-DOCKER.md docs/
+        cp README-DOCKER-STACK.md docs/
+        cp README-DOCKER-IMAGE.md docs/
+        cp README-GITHUB-ACTIONS.md docs/
+        cp DOCKER_DEPLOYMENT_GUIDE.md docs/
+        cp QUICK_START.md docs/
+        
+        # Create index page
+        cat > docs/index.md << 'EOF'
+        # WB Slots Documentation
+        
+        Welcome to WB Slots documentation!
+        
+        ## Quick Start
+        - [Quick Start Guide](QUICK_START.md)
+        - [Docker Deployment](README-DOCKER.md)
+        
+        ## Detailed Guides
+        - [Full Deployment Guide](DOCKER_DEPLOYMENT_GUIDE.md)
+        - [Docker Stack Guide](README-DOCKER-STACK.md)
+        - [Docker Image Guide](README-DOCKER-IMAGE.md)
+        - [GitHub Actions Guide](README-GITHUB-ACTIONS.md)
+        
+        ## Getting Started
+        1. Clone the repository
+        2. Follow the [Quick Start Guide](QUICK_START.md)
+        3. Deploy using [Docker](README-DOCKER.md)
+        
+        ## Support
+        - [GitHub Issues](https://github.com/${{ github.repository }}/issues)
+        - [GitHub Discussions](https://github.com/${{ github.repository }}/discussions)
+        EOF
+
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs
+        cname: wb-slots.your-domain.com  # Optional: replace with your domain

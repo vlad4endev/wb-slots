@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: wb_slots
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - wb-slots-network
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    networks:
+      - wb-slots-network
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Main Application
+  app:
+    image: wb-slots-app:latest
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/wb_slots?schema=public
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=dev-jwt-secret-key-for-development-only
+      - ENCRYPTION_KEY=dev-encryption-key-for-development-only
+      - APP_BASE_URL=http://localhost:3000
+      - NODE_ENV=development
+    networks:
+      - wb-slots-network
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+      - redis
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        npx prisma migrate deploy &&
+        npx prisma db seed &&
+        echo 'Starting application...' &&
+        node server.js
+      "
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  # Background Worker
+  worker:
+    image: wb-slots-app:latest
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/wb_slots?schema=public
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=dev-jwt-secret-key-for-development-only
+      - ENCRYPTION_KEY=dev-encryption-key-for-development-only
+      - NODE_ENV=development
+    networks:
+      - wb-slots-network
+    depends_on:
+      - postgres
+      - redis
+    command: npx tsx src/workers/index.ts
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+networks:
+  wb-slots-network:
+    driver: overlay
+    attachable: true
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
