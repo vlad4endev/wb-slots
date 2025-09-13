@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import {
-  FiLoader2 as Loader2,
+  FiLoader as Loader2,
   FiCheck as Check,
   FiX as X,
   FiRefreshCw as RefreshCw

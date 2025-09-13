@@ -199,7 +199,7 @@ export default function WarehousesPage() {
     }
   };
 
-  const filteredWarehouses = warehouses.filter(warehouse =>
+  const filteredWarehouses = (warehouses || []).filter(warehouse =>
     warehouse.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 

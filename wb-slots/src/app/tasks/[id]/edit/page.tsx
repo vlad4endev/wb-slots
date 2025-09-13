@@ -274,7 +274,7 @@ export default function EditTaskPage() {
     }));
   };
 
-  const filteredWarehouses = warehouseRefs.filter(warehouse =>
+  const filteredWarehouses = (warehouseRefs || []).filter(warehouse =>
     warehouse.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
     warehouse.isActive
   );

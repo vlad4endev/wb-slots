@@ -25,8 +25,9 @@ export class WBSuppliesClient extends BaseWBClient {
     dateTo?: string,
     isSortingCenter?: boolean
   ): Promise<WBCoefficient[]> {
+    // Согласно официальной документации Wildberries API
     const params: Record<string, any> = {
-      warehouseIDs: warehouseIds.join(','), // Исправлено: warehouseIDs вместо warehouseIds
+      warehouseIDs: warehouseIds.join(','), // Правильное название параметра
     };
 
     if (dateFrom) {
@@ -40,35 +41,50 @@ export class WBSuppliesClient extends BaseWBClient {
     }
 
     const startTime = Date.now();
-    console.log(`🌐 WB API запрос: GET /api/v1/acceptance/coefficients`);
+    console.log(`🌐 WB API запрос: POST /api/v1/acceptance/coefficients`);
     console.log(`📋 Параметры:`, params);
     console.log(`🕐 Время запроса: ${new Date().toISOString()}`);
     console.log(`🏪 Склады: ${warehouseIds.join(', ')}`);
     console.log(`📅 Период: ${dateFrom || 'не указано'} - ${dateTo || 'не указано'}`);
     console.log(`🏭 Сортировочный центр: ${isSortingCenter ? 'Да' : 'Нет'}`);
     
-    // Показываем полный curl запрос для отладки
-    let curlCommand = `curl -G "https://supplies-api.wildberries.ru/api/v1/acceptance/coefficients" \\
-  -H "Authorization:${this.token.substring(0, 10)}..." \\
-  --data-urlencode "warehouseIDs=${warehouseIds.join(',')}"`;
+    // Согласно официальной документации Wildberries API, используем POST запрос
+    const requestBody = {
+      warehouseIDs: warehouseIds,
+      dateFrom: dateFrom || new Date().toISOString(),
+      dateTo: dateTo || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      isSortingCenter: isSortingCenter || false
+    };
     
-    if (dateFrom) {
-      curlCommand += ` \\
-  --data-urlencode "dateFrom=${dateFrom}"`;
-    }
-    if (dateTo) {
-      curlCommand += ` \\
-  --data-urlencode "dateTo=${dateTo}"`;
-    }
-    if (isSortingCenter !== undefined) {
-      curlCommand += ` \\
-  --data-urlencode "isSortingCenter=${isSortingCenter}"`;
-    }
+    // Показываем полный curl запрос для отладки
+    let curlCommand = `curl -X POST "https://supplies-api.wildberries.ru/api/v1/acceptance/coefficients" \\
+  -H "Authorization: ${this.token.substring(0, 10)}..." \\
+  -H "Content-Type: application/json" \\
+  -d '${JSON.stringify(requestBody)}'`;
     
     console.log(`🔧 Эквивалентный curl запрос:`);
     console.log(curlCommand);
 
-    const response = await this.get<WBCoefficient[]>('/api/v1/acceptance/coefficients', params);
+    // Попробуем сначала POST, если не работает - GET
+    let response;
+    try {
+      response = await this.post<WBCoefficient[]>('/api/v1/acceptance/coefficients', requestBody);
+    } catch (error: any) {
+      if (error.statusCode === 405) {
+        console.log('⚠️ POST не поддерживается, пробуем GET запрос...');
+        // Если POST не поддерживается, используем GET с query параметрами
+        const queryParams = new URLSearchParams({
+          warehouseIDs: warehouseIds.join(','),
+          dateFrom: requestBody.dateFrom,
+          dateTo: requestBody.dateTo,
+          isSortingCenter: requestBody.isSortingCenter.toString()
+        });
+        
+        response = await this.get<WBCoefficient[]>(`/api/v1/acceptance/coefficients?${queryParams}`);
+      } else {
+        throw error;
+      }
+    }
     const endTime = Date.now();
     const requestDuration = endTime - startTime;
     
@@ -159,17 +175,46 @@ export class WBSuppliesClient extends BaseWBClient {
   }
 
   /**
-   * Get supplies list
+   * Get supplies list with filters
    * @param limit Maximum number of supplies to return (default: 1000)
    * @param offset Offset for pagination (default: 0)
+   * @param statusIDs Array of status IDs to filter (5, 6 for draft statuses)
+   * @param dateFrom Start date for filtering (ISO string)
+   * @param dateTo End date for filtering (ISO string)
    */
-  async getSupplies(limit: number = 1000, offset: number = 0): Promise<WBSupply[]> {
+  async getSupplies(
+    limit: number = 1000, 
+    offset: number = 0,
+    statusIDs: number[] = [5, 6], // 5, 6 - статусы черновик
+    dateFrom?: string,
+    dateTo?: string
+  ): Promise<WBSupply[]> {
     const params = {
       limit,
       offset,
     };
 
-    const response = await this.post<WBSupply[]>('/api/v1/supplies', {}, params);
+    // Подготавливаем тело запроса с фильтрами
+    const requestBody: any = {
+      statusIDs: statusIDs,
+    };
+
+    // Добавляем фильтр по датам если указаны
+    if (dateFrom && dateTo) {
+      requestBody.dates = [
+        {
+          from: dateFrom,
+          till: dateTo,
+          type: "factDate"
+        }
+      ];
+    }
+
+    console.log(`🌐 WB API запрос: POST /api/v1/supplies`);
+    console.log(`📋 Параметры:`, params);
+    console.log(`📦 Тело запроса:`, requestBody);
+
+    const response = await this.post<WBSupply[]>('/api/v1/supplies', requestBody, params);
     
     if (response.error) {
       throw new Error(response.errorText || 'Failed to get supplies');
@@ -223,15 +268,42 @@ export class WBSuppliesClient extends BaseWBClient {
     coefficientThreshold: number = 0,
     allowUnload: boolean = true
   ): Promise<WBCoefficient[]> {
-    // Get coefficients for all warehouses
-    const coefficients = await this.getCoefficients(warehouseIds, dateFrom, dateTo);
-    
-    // Filter by criteria
-    return coefficients.filter(coeff => 
-      warehouseIds.includes(coeff.warehouseID) &&
-      coeff.coefficient >= coefficientThreshold &&
-      coeff.allowUnload === allowUnload
-    );
+    try {
+      // Get coefficients for all warehouses
+      const coefficients = await this.getCoefficients(warehouseIds, dateFrom, dateTo);
+      
+      console.log(`🔍 Фильтрация слотов по параметрам:`);
+      console.log(`   - Склады: [${warehouseIds.join(', ')}]`);
+      console.log(`   - Типы коробок: [${boxTypeIds.join(', ')}]`);
+      console.log(`   - Минимальный коэффициент: ${coefficientThreshold}`);
+      console.log(`   - Разгрузка разрешена: ${allowUnload} (только с allowUnload: true)`);
+      console.log(`   - Всего коэффициентов до фильтрации: ${coefficients?.length || 0}`);
+      
+      // Проверяем, что coefficients существует и является массивом
+      if (!coefficients || !Array.isArray(coefficients)) {
+        console.warn(`⚠️ Получены некорректные данные от API:`, coefficients);
+        return [];
+      }
+      
+      // Filter by basic criteria (warehouse and box type only)
+      const filteredCoefficients = coefficients.filter(coeff => {
+        if (!coeff || typeof coeff !== 'object') {
+          console.warn(`⚠️ Некорректный коэффициент:`, coeff);
+          return false;
+        }
+        
+        return warehouseIds.includes(coeff.warehouseID) &&
+               boxTypeIds.includes(coeff.boxTypeID);
+      });
+      
+      console.log(`✅ Найдено слотов по складам и типам коробок: ${filteredCoefficients.length}`);
+      console.log(`ℹ️ Дополнительная фильтрация по коэффициентам и allowUnload будет выполнена в continuous search service`);
+      
+      return filteredCoefficients;
+    } catch (error) {
+      console.error(`❌ Ошибка при поиске слотов:`, error);
+      throw error;
+    }
   }
 
   /**

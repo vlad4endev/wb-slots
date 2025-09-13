@@ -18,7 +18,7 @@ import {
   FiUsers as Users,
   FiTarget as Target,
   FiRefreshCw as RefreshCw,
-  FiLoader2 as Loader2,
+  FiLoader as Loader2,
   FiExternalLink as ExternalLink,
   FiShield as Shield,
   FiKey as Key,

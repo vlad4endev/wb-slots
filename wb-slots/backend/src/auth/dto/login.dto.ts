@@ -22,5 +22,5 @@ export class LoginDto {
 
   @ApiProperty({ example: 'password123', description: 'Пароль' })
   @IsString()
-  password: string;
+  password!: string;
 }

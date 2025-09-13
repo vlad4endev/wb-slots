@@ -17,7 +17,7 @@ import {
   FiClock as Clock,
   FiPackage as Warehouse,
   FiMessageSquare as MessageSquare,
-  FiMessageSquare as Bot,
+  FiMessageCircle as MessageCircle,
   FiActivity as Activity,
   FiShield as Shield,
   FiDatabase as Database
@@ -46,10 +46,10 @@ const navigationItems = [
     description: 'Обзор системы'
   },
   {
-    name: 'Поиск слотов',
+    name: 'Задачи поиска слотов',
     href: '/tasks',
     icon: Search,
-    description: 'Управление задачами'
+    description: 'Управление задачами поиска слотов'
   },
   {
     name: 'Автобронирование',
@@ -63,19 +63,19 @@ const navigationItems = [
     icon: BarChart3,
     description: 'Статистика и отчеты'
   },
-  {
-    name: 'Настройки',
-    href: '/settings',
-    icon: Settings,
-    description: 'Конфигурация системы'
-  }
+          {
+            name: 'Настройки',
+            href: '/settings',
+            icon: Settings,
+            description: 'Конфигурация системы и Telegram'
+          }
 ];
 
 const quickActions = [
   {
-    name: 'Telegram',
-    href: '/settings/telegram',
-    icon: MessageSquare,
+    name: 'Настройки',
+    href: '/settings',
+    icon: Settings,
     variant: 'outline' as const
   },
   {

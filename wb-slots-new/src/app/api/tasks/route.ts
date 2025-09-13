@@ -73,10 +73,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = createTaskSchema.parse(body);
 
-    // Create task
+    // Create task - используем только поля, которые есть в схеме Prisma
     const task = await prisma.task.create({
       data: {
-        ...validatedData,
+        name: validatedData.name,
+        description: validatedData.description || '',
+        enabled: validatedData.enabled,
+        autoBook: validatedData.autoBook,
+        autoBookSupplyId: validatedData.autoBookSupplyId || '',
+        filters: validatedData.filters,
+        retryPolicy: validatedData.retryPolicy,
+        priority: validatedData.priority,
+        scheduleCron: validatedData.scheduleCron,
         userId: user.id,
       },
       include: {
@@ -158,9 +166,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Проверяем ошибки валидации Zod
     if (error instanceof Error && error.name === 'ZodError') {
       return NextResponse.json(
         { success: false, error: 'Validation error', details: error.message },
+        { status: 400 }
+      );
+    }
+
+    // Проверяем ошибки Prisma
+    if (error instanceof Error && error.name === 'PrismaClientValidationError') {
+      return NextResponse.json(
+        { success: false, error: 'Invalid data provided', details: error.message },
         { status: 400 }
       );
     }

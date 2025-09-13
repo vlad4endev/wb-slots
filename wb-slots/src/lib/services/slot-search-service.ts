@@ -107,7 +107,13 @@ export class SlotSearchService {
       }
 
       // Расшифровываем токен
-      const decryptedToken = decrypt(suppliesToken.tokenEncrypted);
+      let decryptedToken;
+      try {
+        decryptedToken = decrypt(suppliesToken.tokenEncrypted);
+      } catch (error) {
+        console.error(`Failed to decrypt supplies token for user ${config.userId}:`, error);
+        throw new Error(`Failed to decrypt supplies token. Please re-add your SUPPLIES token in settings.`);
+      }
 
       // Создаем конфигурацию для WBSlotSearch
       const searchConfig = {

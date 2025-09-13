@@ -29,6 +29,18 @@ let TasksController = class TasksController {
     async findAll(req) {
         return this.tasksService.findAll(req.user.sub);
     }
+    async searchSlots(req, warehouseIds, boxTypeIds, coefficientMin, coefficientMax, dateFrom, dateTo, isSortingCenter, updateInterval) {
+        return this.tasksService.searchSlots(req.user.sub, {
+            warehouseIds: warehouseIds ? warehouseIds.split(',').map(id => parseInt(id.trim())) : [],
+            boxTypeIds: boxTypeIds ? boxTypeIds.split(',').map(id => parseInt(id.trim())) : [2, 5],
+            coefficientMin: coefficientMin ? parseFloat(coefficientMin) : 0,
+            coefficientMax: coefficientMax ? parseFloat(coefficientMax) : 20,
+            dateFrom: dateFrom || new Date().toISOString(),
+            dateTo: dateTo || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            isSortingCenter: isSortingCenter === 'true',
+            updateInterval: updateInterval ? parseInt(updateInterval) : 30,
+        });
+    }
     async getStats(req) {
         return this.tasksService.getTaskStats(req.user.sub);
     }
@@ -65,6 +77,31 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], TasksController.prototype, "findAll", null);
+__decorate([
+    (0, common_1.Get)('search-slots'),
+    (0, swagger_1.ApiOperation)({ summary: 'Поиск слотов с фильтрацией' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Найденные слоты' }),
+    (0, swagger_1.ApiQuery)({ name: 'warehouseIds', required: false, description: 'ID складов через запятую' }),
+    (0, swagger_1.ApiQuery)({ name: 'boxTypeIds', required: false, description: 'ID типов коробов через запятую' }),
+    (0, swagger_1.ApiQuery)({ name: 'coefficientMin', required: false, description: 'Минимальный коэффициент' }),
+    (0, swagger_1.ApiQuery)({ name: 'coefficientMax', required: false, description: 'Максимальный коэффициент' }),
+    (0, swagger_1.ApiQuery)({ name: 'dateFrom', required: false, description: 'Дата начала (ISO string)' }),
+    (0, swagger_1.ApiQuery)({ name: 'dateTo', required: false, description: 'Дата окончания (ISO string)' }),
+    (0, swagger_1.ApiQuery)({ name: 'isSortingCenter', required: false, description: 'Сортировочный центр' }),
+    (0, swagger_1.ApiQuery)({ name: 'updateInterval', required: false, description: 'Интервал обновления в секундах' }),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Query)('warehouseIds')),
+    __param(2, (0, common_1.Query)('boxTypeIds')),
+    __param(3, (0, common_1.Query)('coefficientMin')),
+    __param(4, (0, common_1.Query)('coefficientMax')),
+    __param(5, (0, common_1.Query)('dateFrom')),
+    __param(6, (0, common_1.Query)('dateTo')),
+    __param(7, (0, common_1.Query)('isSortingCenter')),
+    __param(8, (0, common_1.Query)('updateInterval')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String, String, String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], TasksController.prototype, "searchSlots", null);
 __decorate([
     (0, common_1.Get)('stats'),
     (0, swagger_1.ApiOperation)({ summary: 'Получение статистики задач пользователя' }),

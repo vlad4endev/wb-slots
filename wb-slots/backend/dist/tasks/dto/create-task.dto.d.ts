@@ -6,4 +6,5 @@ export declare class CreateTaskDto {
     isActive?: boolean;
     autoBook?: boolean;
     autoBookSupplyId?: string;
+    chosenSupplyId?: string;
 }

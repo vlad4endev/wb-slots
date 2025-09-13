@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { TelegramService } from '@/lib/services/telegram-service';
+import { getTelegramService } from '@/lib/services/telegram-service';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     const validatedData = notificationSchema.parse(body);
 
     // Создаем экземпляр TelegramService с prisma
-    const telegramService = new TelegramService(prisma);
+    const telegramService = getTelegramService();
 
     // Отправляем уведомление
     const success = await telegramService.sendNotification(user.id, validatedData.message);
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     const user = await requireAuth(request);
 
     // Создаем экземпляр TelegramService с prisma
-    const telegramService = new TelegramService(prisma);
+    const telegramService = getTelegramService();
 
     // Проверяем, настроены ли уведомления
     const isConfigured = await telegramService.isNotificationConfigured(user.id);

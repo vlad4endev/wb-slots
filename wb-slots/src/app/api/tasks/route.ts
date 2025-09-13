@@ -73,10 +73,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = createTaskSchema.parse(body);
 
-    // Create task
+    // Create task - используем только поля, которые есть в схеме Prisma
     const task = await prisma.task.create({
       data: {
-        ...validatedData,
+        name: validatedData.name,
+        description: validatedData.description || '',
+        enabled: validatedData.enabled,
+        autoBook: validatedData.autoBook,
+        autoBookSupplyId: validatedData.autoBookSupplyId || '',
+        filters: validatedData.filters,
+        retryPolicy: validatedData.retryPolicy,
+        priority: validatedData.priority,
+        scheduleCron: validatedData.scheduleCron,
         userId: user.id,
       },
       include: {

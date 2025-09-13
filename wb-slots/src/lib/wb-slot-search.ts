@@ -5,6 +5,16 @@ import { AutoBookingService } from './auto-booking-service';
 import { TelegramService } from './telegram-service';
 // import { TaskStatus } from '@prisma/client';
 
+// Singleton instance для TelegramService
+let telegramServiceInstance: TelegramService | null = null;
+
+function getTelegramService(): TelegramService {
+  if (!telegramServiceInstance) {
+    telegramServiceInstance = new TelegramService();
+  }
+  return telegramServiceInstance;
+}
+
 export interface SlotSearchConfig {
   userId: string;
   taskId: string;
@@ -351,8 +361,7 @@ export class WBSlotSearch {
         await this.updateTaskStatus('BOOKING', runId);
         
         // Отправляем уведомление о найденном слоте
-        const telegramService = new TelegramService();
-        await telegramService.notifySlotFound(
+        await getTelegramService().notifySlotFound(
           this.userId,
           this.taskId,
           this.config.taskName || 'Задача',
@@ -360,7 +369,7 @@ export class WBSlotSearch {
         );
         
         // Отправляем уведомление о начале бронирования
-        await telegramService.notifyBookingStarted(
+        await getTelegramService().notifyBookingStarted(
           this.userId,
           this.taskId,
           this.config.taskName || 'Задача',
@@ -381,7 +390,7 @@ export class WBSlotSearch {
           console.log(`✅ Авто-бронирование завершено успешно: ${bookingResult.bookingId}`);
           
           // Отправляем уведомление о завершении бронирования
-          await telegramService.notifyBookingCompleted(
+          await getTelegramService().notifyBookingCompleted(
             this.userId,
             this.taskId,
             this.config.taskName || 'Задача',
@@ -396,7 +405,7 @@ export class WBSlotSearch {
           console.error(`❌ Ошибка авто-бронирования: ${bookingResult.error}`);
           
           // Отправляем уведомление об ошибке бронирования
-          await telegramService.notifyBookingFailed(
+          await getTelegramService().notifyBookingFailed(
             this.userId,
             this.taskId,
             this.config.taskName || 'Задача',

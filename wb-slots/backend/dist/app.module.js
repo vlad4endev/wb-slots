@@ -13,7 +13,10 @@ const auth_module_1 = require("./auth/auth.module");
 const users_module_1 = require("./users/users.module");
 const tasks_module_1 = require("./tasks/tasks.module");
 const warehouses_module_1 = require("./warehouses/warehouses.module");
+const supplies_module_1 = require("./supplies/supplies.module");
+const telegram_settings_module_1 = require("./notifications/telegram-settings.module");
 const prisma_module_1 = require("./prisma/prisma.module");
+const logger_service_1 = require("./lib/logger.service");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -29,7 +32,11 @@ exports.AppModule = AppModule = __decorate([
             users_module_1.UsersModule,
             tasks_module_1.TasksModule,
             warehouses_module_1.WarehousesModule,
+            supplies_module_1.SuppliesModule,
+            telegram_settings_module_1.TelegramSettingsModule,
         ],
+        providers: [logger_service_1.AppLoggerService],
+        exports: [logger_service_1.AppLoggerService],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

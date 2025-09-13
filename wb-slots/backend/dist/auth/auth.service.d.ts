@@ -41,5 +41,6 @@ export declare class AuthService {
         emailVerified: Date | null;
         createdAt: Date;
         updatedAt: Date;
+        isProtected: boolean;
     } | null>;
 }

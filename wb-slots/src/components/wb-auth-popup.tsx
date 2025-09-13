@@ -8,7 +8,7 @@ import {
   FiShield as Shield,
   FiCheckCircle as CheckCircle,
   FiAlertCircle as AlertCircle,
-  FiLoader2 as Loader2,
+  FiLoader as Loader2,
   FiExternalLink as ExternalLink,
   FiX as X
 } from 'react-icons/fi';

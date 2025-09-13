@@ -37,6 +37,8 @@ import {
 import Link from 'next/link';
 import DashboardLayout from '@/app/dashboard-layout';
 import CreateTaskModal from '@/components/create-task-modal';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import SlotSearch from '@/components/slot-search';
 
 interface Task {
   id: string;
@@ -92,9 +94,10 @@ export default function TasksPage() {
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
   const [error, setError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('tasks');
 
   const filterTasks = useCallback(() => {
-    let filtered = tasks;
+    let filtered = tasks || [];
 
     // Фильтр по поисковому запросу
     if (searchQuery) {
@@ -285,10 +288,10 @@ export default function TasksPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  Поиск лотов
+                  Поиск слотов Wildberries
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400 mt-1">
-                  Управление задачами поиска слотов Wildberries
+                  Управление задачами и поиск доступных слотов
                 </p>
               </div>
               <div className="flex items-center space-x-3">
@@ -313,8 +316,15 @@ export default function TasksPage() {
           </div>
         </div>
 
-        <div className="p-6 space-y-6">
-          {/* Stats Cards */}
+        <div className="p-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="tasks">Мои задачи</TabsTrigger>
+              <TabsTrigger value="search">Быстрый поиск</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="tasks" className="space-y-6">
+              {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
               <CardContent className="p-6">
@@ -596,6 +606,12 @@ export default function TasksPage() {
               )}
             </CardContent>
           </Card>
+            </TabsContent>
+
+            <TabsContent value="search" className="space-y-6">
+              <SlotSearch />
+            </TabsContent>
+          </Tabs>
         </div>
 
         {/* Create Task Modal */}

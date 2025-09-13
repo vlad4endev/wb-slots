@@ -88,14 +88,17 @@ export default function TaskDetailPage() {
       const response = await fetch('/api/warehouses/reference');
       const data = await response.json();
       
-      if (data.success) {
+      if (data.success && data.data && data.data.warehouses && Array.isArray(data.data.warehouses)) {
         const warehouseMap: Record<number, string> = {};
-        data.data.forEach((warehouse: any) => {
+        data.data.warehouses.forEach((warehouse: any) => {
           if (warehouseIds.includes(warehouse.id)) {
             warehouseMap[warehouse.id] = warehouse.name;
           }
         });
         setWarehouseInfo(warehouseMap);
+      } else {
+        console.warn('Invalid warehouse data structure:', data);
+        console.warn('Expected data.data.warehouses to be an array, got:', typeof data.data?.warehouses);
       }
     } catch (error) {
       console.error('Error fetching warehouse info:', error);

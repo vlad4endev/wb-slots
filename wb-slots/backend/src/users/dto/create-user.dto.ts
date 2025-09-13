@@ -4,7 +4,7 @@ import { ApiProperty } from '@nestjs/swagger';
 export class CreateUserDto {
   @ApiProperty({ example: 'user@example.com', description: 'Email пользователя' })
   @IsEmail()
-  email: string;
+  email!: string;
 
   @ApiProperty({ 
     example: '+79001234567', 
@@ -18,9 +18,9 @@ export class CreateUserDto {
 
   @ApiProperty({ example: 'hashedPassword', description: 'Хешированный пароль' })
   @IsString()
-  passwordHash: string;
+  passwordHash!: string;
 
   @ApiProperty({ example: 'Иван Иванов', description: 'Имя пользователя' })
   @IsString()
-  name: string;
+  name!: string;
 }

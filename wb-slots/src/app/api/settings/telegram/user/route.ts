@@ -20,7 +20,8 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({
       chatId: telegramSettings.telegram?.chatId || '',
-      enabled: telegramSettings.telegram?.enabled || false
+      enabled: telegramSettings.telegram?.enabled || false,
+      userInfo: telegramSettings.telegram?.userInfo || null
     });
   } catch (error) {
     console.error('Error fetching Telegram user settings:', error);
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { chatId, enabled } = await request.json();
+    const { chatId, enabled, userInfo } = await request.json();
 
     if (!chatId || typeof enabled !== 'boolean') {
       return NextResponse.json({ 
@@ -55,7 +56,8 @@ export async function POST(request: NextRequest) {
         settings: {
           telegram: {
             chatId,
-            enabled
+            enabled,
+            userInfo: userInfo || null
           }
         }
       },
@@ -65,7 +67,8 @@ export async function POST(request: NextRequest) {
         settings: {
           telegram: {
             chatId,
-            enabled
+            enabled,
+            userInfo: userInfo || null
           }
         }
       }

@@ -50,21 +50,54 @@ export function encrypt(text: string): string {
 
 export function decrypt(encryptedData: string): string {
   try {
+    console.log('🔓 Начинаем расшифровку токена...');
+    console.log('📏 Длина зашифрованных данных:', encryptedData.length);
+    
+    // Проверяем, не является ли это уже расшифрованным токеном
+    // Если токен содержит только обычные символы и не является base64, 
+    // то это скорее всего уже расшифрованный токен
+    if (encryptedData.length < 50 && !encryptedData.includes('=') && !encryptedData.includes('/') && !encryptedData.includes('+')) {
+      console.log('⚠️ Токен выглядит как plain text, возвращаем как есть');
+      return encryptedData;
+    }
+    
     const key = getEncryptionKey();
+    console.log('🔑 Ключ шифрования получен, длина:', key.length);
+    
     const combined = Buffer.from(encryptedData, 'base64');
+    console.log('📦 Данные декодированы из base64, длина буфера:', combined.length);
+    
+    // Проверяем минимальную длину
+    if (combined.length < IV_LENGTH) {
+      console.log('⚠️ Данные слишком короткие для зашифрованного токена, возвращаем как plain text');
+      return encryptedData;
+    }
     
     // Extract components
     const iv = combined.subarray(0, IV_LENGTH);
     const encrypted = combined.subarray(IV_LENGTH);
+    
+    console.log('🔐 IV длина:', iv.length, 'Зашифрованные данные длина:', encrypted.length);
     
     const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
     
     let decrypted = decipher.update(encrypted, undefined, 'utf8');
     decrypted += decipher.final('utf8');
     
+    console.log('✅ Токен успешно расшифрован, длина:', decrypted.length);
     return decrypted;
   } catch (error) {
-    throw new EncryptionError(`Decryption failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    console.error('❌ Ошибка расшифровки токена:', error);
+    console.error('📊 Детали ошибки:', {
+      errorType: error instanceof Error ? error.constructor.name : typeof error,
+      message: error instanceof Error ? error.message : String(error),
+      encryptedDataLength: encryptedData?.length || 0,
+      encryptedDataPreview: encryptedData?.substring(0, 50) + '...' || 'undefined'
+    });
+    
+    // Если расшифровка не удалась, возможно это plain text токен
+    console.log('⚠️ Попытка вернуть как plain text токен');
+    return encryptedData;
   }
 }
 

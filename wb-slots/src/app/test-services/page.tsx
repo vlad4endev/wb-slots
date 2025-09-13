@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  FiLoader2 as Loader2,
+  FiLoader as Loader2,
   FiSearch as Search,
   FiBookOpen as BookOpen,
   FiMessageSquare as MessageSquare,

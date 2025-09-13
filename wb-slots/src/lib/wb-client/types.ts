@@ -131,6 +131,7 @@ export interface WBRequestOptions {
   timeout?: number;
   retries?: number;
   retryDelay?: number;
+  userId?: string;
 }
 
 // Rate limiting

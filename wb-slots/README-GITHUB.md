@@ -324,3 +324,4 @@ docker run --rm wb-slots-app:debug npm test
 - **Ручной запуск**: Actions → Run workflow
 - **Создание релиза**: `git tag v1.0.0 && git push origin v1.0.0`
 - **Обновление версии**: Actions → Version Bump → Run workflow
+

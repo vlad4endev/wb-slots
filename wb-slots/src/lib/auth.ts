@@ -5,7 +5,7 @@ import { prisma } from './prisma';
 import { User } from '@prisma/client';
 
 export interface JWTPayload {
-  userId: string;
+  sub: string;
   email: string;
   role: string;
   iat?: number;
@@ -58,8 +58,19 @@ export async function getCurrentUser(request: NextRequest): Promise<User | null>
     }
 
     const payload = await verifyToken(token);
+    console.log('🔍 JWT Payload:', payload);
+    
+    // Поддерживаем как sub, так и userId для совместимости
+    const userId = payload.sub || payload.userId;
+    console.log('🔍 User ID:', userId);
+    
+    if (!userId) {
+      console.error('❌ JWT payload не содержит sub или userId');
+      return null;
+    }
+    
     const user = await prisma.user.findUnique({
-      where: { id: payload.userId },
+      where: { id: userId },
     });
 
     if (!user) {

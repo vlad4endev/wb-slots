@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { TelegramService } from '@/lib/services/telegram-service';
+import { getTelegramService } from '@/lib/services/telegram-service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const telegramService = new TelegramService();
+    const telegramService = getTelegramService();
 
     // Отправляем тестовое уведомление
     const success = await telegramService.sendNotification(user.id, 

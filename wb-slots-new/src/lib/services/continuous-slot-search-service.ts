@@ -55,10 +55,25 @@ export class ContinuousSlotSearchService {
    * Запустить непрерывный поиск слотов
    */
   async startContinuousSearch(config: ContinuousSearchConfig): Promise<ContinuousSearchResult> {
+    console.log('🚀 Starting continuous search with config:', {
+      taskId: config.taskId,
+      userId: config.userId,
+      runId: config.runId,
+      warehouseIds: config.warehouseIds,
+      boxTypeIds: config.boxTypeIds,
+      coefficientMin: config.coefficientMin,
+      coefficientMax: config.coefficientMax,
+      dateFrom: config.dateFrom,
+      dateTo: config.dateTo,
+      autoBook: config.autoBook,
+    });
+
     if (this.isSearching) {
+      console.log('❌ Search is already in progress, throwing error');
       throw new Error('Search is already in progress');
     }
 
+    console.log('✅ Setting search state to active');
     this.isSearching = true;
     this.stopRequested = false;
     this.currentSearchId = config.taskId;
@@ -139,9 +154,13 @@ export class ContinuousSlotSearchService {
       const maxExecutionTime = config.maxExecutionTime || 7 * 24 * 60 * 60 * 1000; // 7 дней
 
       // Основной цикл поиска
+      console.log(`🔄 Starting search loop with ${maxCycles} max cycles, ${searchDelay}ms delay`);
       for (let cycle = 1; cycle <= maxCycles; cycle++) {
+        console.log(`🔄 Starting search cycle ${cycle}/${maxCycles}`);
+        
         // Проверяем, не запрошена ли остановка
         if (this.stopRequested) {
+          console.log('⏹️ Search stopped by user request');
           await this.logRunMessage(config.runId, 'INFO', 'Search stopped by user request', { cycle });
           break;
         }
@@ -166,6 +185,14 @@ export class ContinuousSlotSearchService {
           });
 
           // Выполняем поиск слотов
+          console.log(`🌐 Making WB API request for cycle ${cycle}:`, {
+            warehouseIds: config.warehouseIds,
+            boxTypeIds: config.boxTypeIds,
+            dateFrom: config.dateFrom,
+            dateTo: config.dateTo,
+            coefficientMin: config.coefficientMin,
+          });
+          
           const searchResult = await wbClient.searchAvailableSlots(
             config.warehouseIds,
             config.boxTypeIds,
@@ -174,6 +201,11 @@ export class ContinuousSlotSearchService {
             config.coefficientMin,
             true // allowUnload
           );
+          
+          console.log(`📊 WB API response for cycle ${cycle}:`, {
+            totalResults: searchResult.length,
+            firstResult: searchResult[0] || null,
+          });
 
           // Фильтруем найденные слоты по максимальному коэффициенту
           const validSlots = searchResult.filter((slot: any) => {

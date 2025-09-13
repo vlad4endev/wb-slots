@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +21,9 @@ import {
   FiAlertTriangle as AlertTriangle,
   FiCheckCircle as CheckCircle,
   FiXCircle as XCircle,
-  FiX as X
+  FiX as X,
+  FiLoader as Loader2,
+  FiChevronDown as ChevronDown
 } from 'react-icons/fi';
 
 interface Warehouse {
@@ -39,6 +41,19 @@ interface WarehouseReference {
   boxAllowed: boolean;
   monopalletAllowed: boolean;
   supersafeAllowed: boolean;
+}
+
+interface Supply {
+  id: string;
+  name: string;
+  status: string;
+  warehouseId: number;
+  boxTypeId: number;
+  supplyDate?: string;
+  factDate?: string;
+  createdAt: string;
+  updatedAt: string;
+  goods?: any[];
 }
 
 interface CreateTaskModalProps {
@@ -59,6 +74,11 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
   const [selectedWarehouses, setSelectedWarehouses] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showWarehouseDropdown, setShowWarehouseDropdown] = useState(false);
+  const [supplies, setSupplies] = useState<Supply[]>([]);
+  const [selectedSupply, setSelectedSupply] = useState<Supply | null>(null);
+  const [showSupplyDropdown, setShowSupplyDropdown] = useState(false);
+  const [supplySearchQuery, setSupplySearchQuery] = useState('');
+  const [isLoadingSupplies, setIsLoadingSupplies] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
@@ -92,6 +112,14 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
     }
   }, [isOpen]);
 
+  // Проверяем аутентификацию при открытии модального окна
+  useEffect(() => {
+    if (isOpen) {
+      console.log('🔍 Проверяем аутентификацию при открытии модального окна...');
+      // Можно добавить проверку аутентификации здесь
+    }
+  }, [isOpen]);
+
   const fetchWarehouses = async () => {
     try {
       const response = await fetch('/api/warehouses/user');
@@ -118,6 +146,46 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
       console.error('Error fetching warehouse references:', error);
     }
   };
+
+  const fetchSupplies = useCallback(async () => {
+    try {
+      setIsLoadingSupplies(true);
+      console.log('🔄 Загрузка поставок со статусом "черновик"...');
+      
+      const response = await fetch('/api/supplies?limit=100&status=draft', {
+        credentials: 'include', // Включаем cookies для аутентификации
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      console.log('📊 Response status:', response.status);
+      
+      const data = await response.json();
+      console.log('📦 Response data:', { success: data.success, error: data.error });
+      
+      if (data.success) {
+        setSupplies(data.data?.supplies || []);
+        console.log('✅ Draft supplies loaded:', data.data?.supplies?.length || 0);
+      } else {
+        console.error('❌ Error fetching supplies:', data.error);
+        setError('Ошибка загрузки поставок: ' + data.error);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching supplies:', error);
+      setError('Ошибка загрузки поставок: ' + (error instanceof Error ? error.message : 'Неизвестная ошибка'));
+    } finally {
+      setIsLoadingSupplies(false);
+    }
+  }, []);
+
+  // Загружаем поставки при включении автобронирования
+  useEffect(() => {
+    if (formData.autoBook && supplies.length === 0) {
+      console.log('🔄 Автобронирование включено, загружаем поставки...');
+      fetchSupplies();
+    }
+  }, [formData.autoBook, supplies.length, fetchSupplies]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -181,6 +249,9 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
       priority: 1,
     });
     setSelectedWarehouses([]);
+    setSelectedSupply(null);
+    setSupplies([]);
+    setSupplySearchQuery('');
     setError('');
     setSuccess('');
   };
@@ -205,8 +276,34 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
     }));
   };
 
-  const filteredWarehouses = warehouseRefs.filter(warehouse =>
+  const handleSupplySelect = (supply: Supply) => {
+    setSelectedSupply(supply);
+    setFormData(prev => ({ ...prev, autoBookSupplyId: supply.id }));
+    setShowSupplyDropdown(false);
+    setSupplySearchQuery('');
+  };
+
+  const handleAutoBookToggle = (checked: boolean) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      autoBook: checked,
+      autoBookSupplyId: checked ? prev.autoBookSupplyId : ''
+    }));
+    
+    if (!checked) {
+      setSelectedSupply(null);
+    } else if (supplies.length === 0) {
+      fetchSupplies();
+    }
+  };
+
+  const filteredWarehouses = (warehouseRefs || []).filter(warehouse =>
     warehouse.warehouseName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredSupplies = (supplies || []).filter(supply =>
+    supply.name.toLowerCase().includes(supplySearchQuery.toLowerCase()) ||
+    supply.id.toLowerCase().includes(supplySearchQuery.toLowerCase())
   );
 
   return (
@@ -549,7 +646,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
                         type="checkbox"
                         id="autoBook"
                         checked={formData.autoBook}
-                        onChange={(e) => setFormData(prev => ({ ...prev, autoBook: e.target.checked }))}
+                        onChange={(e) => handleAutoBookToggle(e.target.checked)}
                         className="w-4 h-4 rounded border-gray-300 text-yellow-600 focus:ring-yellow-500"
                         title="Включить автобронирование"
                       />
@@ -558,17 +655,103 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
                       </Label>
                     </div>
                     {formData.autoBook && (
-                      <div className="space-y-2">
-                        <Label htmlFor="autoBookSupplyId" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Номер приемки для автобронирования
-                        </Label>
-                        <Input
-                          id="autoBookSupplyId"
-                          value={formData.autoBookSupplyId}
-                          onChange={(e) => setFormData(prev => ({ ...prev, autoBookSupplyId: e.target.value }))}
-                          placeholder="Введите номер приемки"
-                          className="h-11"
-                        />
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Выберите поставку для автобронирования *
+                          </Label>
+                          <div className="relative">
+                            <div
+                              className="w-full h-11 p-3 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 cursor-pointer hover:border-yellow-500 focus:ring-2 focus:ring-yellow-500 focus:border-transparent transition-colors"
+                              onClick={() => setShowSupplyDropdown(!showSupplyDropdown)}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-gray-700 dark:text-gray-300">
+                                  {selectedSupply 
+                                    ? `${selectedSupply.name} (${selectedSupply.id})`
+                                    : 'Выберите поставку'
+                                  }
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  {isLoadingSupplies && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+                                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {showSupplyDropdown && (
+                              <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                <div className="p-2">
+                                  <Input
+                                    placeholder="Поиск поставок..."
+                                    value={supplySearchQuery}
+                                    onChange={(e) => setSupplySearchQuery(e.target.value)}
+                                    className="mb-2 h-9"
+                                  />
+                                </div>
+                                <div className="max-h-48 overflow-y-auto">
+                                  {filteredSupplies.length === 0 ? (
+                                    <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+                                      {isLoadingSupplies ? 'Загрузка поставок...' : 'Поставки не найдены'}
+                                    </div>
+                                  ) : (
+                                    filteredSupplies.map((supply) => (
+                                      <div
+                                        key={supply.id}
+                                        className="flex items-center p-3 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 cursor-pointer transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                                        onClick={() => handleSupplySelect(supply)}
+                                      >
+                                        <div className="flex-1">
+                                          <div className="font-medium text-sm text-gray-900 dark:text-white">
+                                            {supply.name}
+                                          </div>
+                                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                            ID: {supply.id} | Статус: {supply.status} | Склад: {supply.warehouseId}
+                                          </div>
+                                          {supply.supplyDate && (
+                                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                                              Дата поставки: {new Date(supply.supplyDate).toLocaleDateString('ru-RU')}
+                                            </div>
+                                          )}
+                                        </div>
+                                        {selectedSupply?.id === supply.id && (
+                                          <CheckCircle className="w-4 h-4 text-yellow-600" />
+                                        )}
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Selected Supply Display */}
+                        {selectedSupply && (
+                          <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="font-medium text-sm text-gray-900 dark:text-white">
+                                  Выбранная поставка: {selectedSupply.name}
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  ID: {selectedSupply.id} | Статус: {selectedSupply.status} | Склад: {selectedSupply.warehouseId}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedSupply(null);
+                                  setFormData(prev => ({ ...prev, autoBookSupplyId: '' }));
+                                }}
+                                className="text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-200"
+                                title="Удалить выбранную поставку"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

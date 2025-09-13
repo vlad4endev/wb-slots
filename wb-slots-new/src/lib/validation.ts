@@ -176,7 +176,7 @@ export const createTaskSchema = z.object({
     }
     return num;
   }).default(0),
-});
+}).strict(); // Строгая валидация - только разрешенные поля
 
 export const updateTaskSchema = createTaskSchema.partial();
 

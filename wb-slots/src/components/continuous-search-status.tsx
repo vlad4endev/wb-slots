@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -81,7 +81,7 @@ export default function ContinuousSearchStatus({
   const [actionLoading, setActionLoading] = useState(false);
 
   // Загружаем данные о поиске
-  const fetchSearchStatus = async () => {
+  const fetchSearchStatus = useCallback(async () => {
     try {
       const response = await fetch(`/api/tasks/${taskId}/continuous-search`);
       const data = await response.json();
@@ -94,7 +94,7 @@ export default function ContinuousSearchStatus({
     } finally {
       setLoading(false);
     }
-  };
+  }, [taskId]);
 
   // Запускаем поиск
   const startSearch = async () => {
@@ -146,7 +146,7 @@ export default function ContinuousSearchStatus({
     
     const interval = setInterval(fetchSearchStatus, 5000);
     return () => clearInterval(interval);
-  }, [taskId]);
+  }, [taskId, fetchSearchStatus]);
 
   if (loading) {
     return (

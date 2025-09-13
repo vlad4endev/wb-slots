@@ -242,26 +242,25 @@ export default function ContinuousSearchStatus({
               </CardDescription>
             </div>
             <div className="flex gap-2">
-              {isSearching ? (
-                <Button 
-                  onClick={stopSearch} 
-                  disabled={actionLoading}
-                  variant="destructive"
-                  size="sm"
-                >
-                  <Square className="h-4 w-4 mr-2" />
-                  Остановить поиск
-                </Button>
-              ) : (
-                <Button 
-                  onClick={startSearch} 
-                  disabled={actionLoading || search.isInProgress}
-                  size="sm"
-                >
-                  <Play className="h-4 w-4 mr-2" />
-                  Запустить поиск
-                </Button>
-              )}
+              <Button 
+                key={isSearching ? 'stop' : 'start'}
+                onClick={isSearching ? stopSearch : startSearch} 
+                disabled={actionLoading}
+                variant={isSearching ? "destructive" : "default"}
+                size="sm"
+              >
+                {isSearching ? (
+                  <>
+                    <Square className="h-4 w-4 mr-2" />
+                    Остановить поиск
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4 mr-2" />
+                    Запустить поиск
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -312,10 +311,32 @@ export default function ContinuousSearchStatus({
               <Badge className={getStatusColor(latestRun?.status || 'PENDING')}>
                 {getStatusIcon(latestRun?.status || 'PENDING')}
                 <span className="ml-1">
-                  {isSearching ? 'Поиск выполняется' : 'Остановлен'}
+                  {isSearching ? 'Поиск выполняется' : 
+                   search.isInProgress ? 'Поиск выполняется (другая задача)' : 'Остановлен'}
                 </span>
               </Badge>
             </div>
+            
+            {search.isInProgress && !isSearching && (
+              <div className="mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                    ⚠️ В данный момент выполняется поиск для другой задачи. 
+                    Дождитесь завершения или остановите текущий поиск.
+                  </p>
+                  <Button
+                    onClick={stopSearch}
+                    disabled={actionLoading}
+                    variant="outline"
+                    size="sm"
+                    className="ml-3 text-yellow-800 border-yellow-300 hover:bg-yellow-100"
+                  >
+                    <Square className="h-3 w-3 mr-1" />
+                    Остановить
+                  </Button>
+                </div>
+              </div>
+            )}
             
             {latestRun && (
               <div className="space-y-2">
@@ -330,10 +351,27 @@ export default function ContinuousSearchStatus({
                   </span>
                 </div>
                 {latestRun.summary && (
-                  <div className="text-sm text-gray-600">
-                    <p>Всего поисков: {latestRun.summary.totalSearches || 0}</p>
+                  <div className="text-sm text-gray-600 space-y-1">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="font-medium">API запросов:</span> {latestRun.summary.totalSearches || 0}
+                      </div>
+                      <div>
+                        <span className="font-medium">Проверено слотов:</span> {latestRun.summary.totalChecked || 0}
+                      </div>
+                      <div>
+                        <span className="font-medium">Циклов поиска:</span> {latestRun.summary.searchCycles || 0}
+                      </div>
+                      <div>
+                        <span className="font-medium">Ошибок:</span> 
+                        <span className="text-red-600 ml-1">{latestRun.summary.errors?.length || 0}</span>
+                      </div>
+                    </div>
                     {latestRun.summary.stoppedEarly && (
-                      <p className="text-yellow-600">Поиск остановлен досрочно</p>
+                      <p className="text-yellow-600 font-medium">⚠️ Поиск остановлен досрочно</p>
+                    )}
+                    {latestRun.summary.peakTimeDetected && (
+                      <p className="text-blue-600 font-medium">🕐 Обнаружено пиковое время</p>
                     )}
                   </div>
                 )}

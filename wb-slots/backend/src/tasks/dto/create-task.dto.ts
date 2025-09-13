@@ -4,7 +4,7 @@ import { ApiProperty } from '@nestjs/swagger';
 export class CreateTaskDto {
   @ApiProperty({ example: 'Поиск слотов на завтра', description: 'Название задачи' })
   @IsString()
-  name: string;
+  name!: string;
 
   @ApiProperty({ 
     example: 'Автоматический поиск слотов на склад Подольск', 
@@ -17,7 +17,7 @@ export class CreateTaskDto {
 
   @ApiProperty({ example: '0 9 * * *', description: 'Cron расписание' })
   @IsString()
-  schedule: string;
+  schedule!: string;
 
   @ApiProperty({ 
     example: { 
@@ -51,4 +51,13 @@ export class CreateTaskDto {
   @IsOptional()
   @IsString()
   autoBookSupplyId?: string;
+
+  @ApiProperty({ 
+    example: 'WBS123456789', 
+    description: 'ID выбранной поставки для автобронирования',
+    required: false 
+  })
+  @IsOptional()
+  @IsString()
+  chosenSupplyId?: string;
 }

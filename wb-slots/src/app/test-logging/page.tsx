@@ -12,7 +12,7 @@ import {
   FiDatabase as Database,
   FiPlay as Play,
   FiSquare as Square,
-  FiLoader2 as Loader2,
+  FiLoader as Loader2,
   FiCheckCircle as CheckCircle,
   FiXCircle as XCircle,
   FiArrowLeft as ArrowLeft,

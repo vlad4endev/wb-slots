@@ -6,7 +6,7 @@ import { decrypt } from './encryption';
 import { LogLevel, RunStatus } from '@prisma/client';
 import { slotSearchService } from './services/slot-search-service';
 import { autoBookingService } from './services/auto-booking-service';
-import { telegramService } from './services/telegram-service';
+import { getTelegramService } from './services/telegram-service';
 
 // Redis connection
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {

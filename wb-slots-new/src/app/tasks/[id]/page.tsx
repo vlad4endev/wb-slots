@@ -376,6 +376,99 @@ export default function TaskDetailPage() {
               </CardContent>
             </Card>
 
+            {/* Анализ запросов */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <RefreshCw className="h-5 w-5" />
+                  Анализ запросов
+                </CardTitle>
+                <CardDescription>
+                  Детальная статистика API запросов и производительности
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600">
+                        {task.runs?.reduce((sum, run) => sum + (run.summary?.totalSearches || 0), 0) || 0}
+                      </div>
+                      <div className="text-sm text-blue-600">Всего запросов</div>
+                    </div>
+                    <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                      <div className="text-2xl font-bold text-green-600">
+                        {task.runs?.reduce((sum, run) => sum + (run.foundSlots || 0), 0) || 0}
+                      </div>
+                      <div className="text-sm text-green-600">Найдено слотов</div>
+                    </div>
+                    <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                      <div className="text-2xl font-bold text-purple-600">
+                        {task.runs?.length || 0}
+                      </div>
+                      <div className="text-sm text-purple-600">Запусков</div>
+                    </div>
+                    <div className="text-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                      <div className="text-2xl font-bold text-orange-600">
+                        {task.runs?.length > 0 ? 
+                          Math.round(task.runs.reduce((sum, run) => {
+                            const start = new Date(run.startedAt);
+                            const end = run.finishedAt ? new Date(run.finishedAt) : new Date();
+                            return sum + (end.getTime() - start.getTime());
+                          }, 0) / task.runs.length / 1000 / 60) : 0
+                        }м
+                      </div>
+                      <div className="text-sm text-orange-600">Среднее время</div>
+                    </div>
+                  </div>
+                  
+                  {/* Детальная статистика последнего запуска */}
+                  {task.runs && task.runs.length > 0 && (
+                    <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <h4 className="font-medium mb-3">Последний запуск</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-500">Статус:</span>
+                          <Badge className={`ml-2 ${getStatusColor(task.runs[0].status)}`}>
+                            {getStatusText(task.runs[0].status)}
+                          </Badge>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Найдено слотов:</span>
+                          <span className="ml-2 font-medium">{task.runs[0].foundSlots || 0}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Время выполнения:</span>
+                          <span className="ml-2 font-medium">
+                            {task.runs[0].finishedAt ? 
+                              Math.round((new Date(task.runs[0].finishedAt).getTime() - new Date(task.runs[0].startedAt).getTime()) / 1000 / 60) + 'м' :
+                              'В процессе'
+                            }
+                          </span>
+                        </div>
+                        {task.runs[0].summary && (
+                          <>
+                            <div>
+                              <span className="text-gray-500">API запросов:</span>
+                              <span className="ml-2 font-medium">{task.runs[0].summary.totalSearches || 0}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Проверено слотов:</span>
+                              <span className="ml-2 font-medium">{task.runs[0].summary.totalChecked || 0}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Ошибок:</span>
+                              <span className="ml-2 font-medium text-red-600">{task.runs[0].summary.errors?.length || 0}</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Последние запуски */}
             <Card>
               <CardHeader>
@@ -393,9 +486,16 @@ export default function TaskDetailPage() {
                           {formatDate(run.startedAt)}
                         </span>
                       </div>
-                      <span className="text-sm font-medium">
-                        {run.foundSlots || 0} слотов
-                      </span>
+                      <div className="text-right">
+                        <span className="text-sm font-medium">
+                          {run.foundSlots || 0} слотов
+                        </span>
+                        {run.summary && (
+                          <div className="text-xs text-gray-500">
+                            {run.summary.totalSearches || 0} запросов
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

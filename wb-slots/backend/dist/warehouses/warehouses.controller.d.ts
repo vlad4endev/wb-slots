@@ -1,10 +1,17 @@
+import { Request as ExpressRequest } from 'express';
 import { WarehousesService } from './warehouses.service';
 import { CreateWarehouseDto } from './dto/create-warehouse.dto';
 import { UpdateWarehouseDto } from './dto/update-warehouse.dto';
+interface AuthenticatedRequest extends ExpressRequest {
+    user: {
+        sub: string;
+        email: string;
+    };
+}
 export declare class WarehousesController {
     private readonly warehousesService;
     constructor(warehousesService: WarehousesService);
-    create(req: any, createWarehouseDto: CreateWarehouseDto): Promise<{
+    create(req: AuthenticatedRequest, createWarehouseDto: CreateWarehouseDto): Promise<{
         id: string;
         createdAt: Date;
         updatedAt: Date;
@@ -16,7 +23,7 @@ export declare class WarehousesController {
         monopalletAllowed: boolean;
         supersafeAllowed: boolean;
     }>;
-    findAll(req: any): Promise<{
+    findAll(req: AuthenticatedRequest): Promise<{
         id: string;
         createdAt: Date;
         updatedAt: Date;
@@ -28,7 +35,7 @@ export declare class WarehousesController {
         monopalletAllowed: boolean;
         supersafeAllowed: boolean;
     }[]>;
-    findOne(id: string, req: any): Promise<{
+    findOne(id: string, req: AuthenticatedRequest): Promise<{
         id: string;
         createdAt: Date;
         updatedAt: Date;
@@ -40,7 +47,7 @@ export declare class WarehousesController {
         monopalletAllowed: boolean;
         supersafeAllowed: boolean;
     }>;
-    update(id: string, req: any, updateWarehouseDto: UpdateWarehouseDto): Promise<{
+    update(id: string, req: AuthenticatedRequest, updateWarehouseDto: UpdateWarehouseDto): Promise<{
         id: string;
         createdAt: Date;
         updatedAt: Date;
@@ -52,7 +59,7 @@ export declare class WarehousesController {
         monopalletAllowed: boolean;
         supersafeAllowed: boolean;
     }>;
-    remove(id: string, req: any): Promise<{
+    remove(id: string, req: AuthenticatedRequest): Promise<{
         id: string;
         createdAt: Date;
         updatedAt: Date;
@@ -64,7 +71,7 @@ export declare class WarehousesController {
         monopalletAllowed: boolean;
         supersafeAllowed: boolean;
     }>;
-    toggleActive(id: string, req: any): Promise<{
+    toggleActive(id: string, req: AuthenticatedRequest): Promise<{
         id: string;
         createdAt: Date;
         updatedAt: Date;
@@ -77,3 +84,4 @@ export declare class WarehousesController {
         supersafeAllowed: boolean;
     }>;
 }
+export {};

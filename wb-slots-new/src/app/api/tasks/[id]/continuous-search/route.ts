@@ -64,8 +64,9 @@ export async function POST(
     };
 
     // Запускаем поиск асинхронно
+    console.log('🚀 Starting continuous search asynchronously for task:', task.taskNumber);
     continuousSlotSearchService.startContinuousSearch(searchConfig).catch(error => {
-      console.error('Continuous search error:', error);
+      console.error('❌ Continuous search error:', error);
     });
 
     return NextResponse.json({

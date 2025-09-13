@@ -4,7 +4,7 @@ import { prisma } from './prisma';
 import { LogLevel, RunStatus } from '@prisma/client';
 import { slotSearchService } from './services/slot-search-service';
 import { autoBookingService } from './services/auto-booking-service';
-import { telegramService } from './services/telegram-service';
+import { getTelegramService } from './services/telegram-service';
 
 // Redis connection
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
@@ -382,7 +382,7 @@ export const notifyWorker = new Worker<NotifyJobData>(
       }
 
       if (message) {
-        await telegramService.sendNotification(userId, message);
+        await getTelegramService().sendNotification(userId, message);
       }
 
     } catch (error) {

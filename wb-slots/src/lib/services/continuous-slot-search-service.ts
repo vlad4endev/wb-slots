@@ -6,6 +6,16 @@ import { TelegramService } from '@/lib/telegram-service';
 
 const prisma = new PrismaClient();
 
+// Singleton instance для TelegramService
+let telegramServiceInstance: TelegramService | null = null;
+
+function getTelegramService(): TelegramService {
+  if (!telegramServiceInstance) {
+    telegramServiceInstance = new TelegramService();
+  }
+  return telegramServiceInstance;
+}
+
 export interface ContinuousSearchConfig {
   taskId: string;
   userId: string;
@@ -22,6 +32,9 @@ export interface ContinuousSearchConfig {
   maxExecutionTime?: number;
   autoBook?: boolean;
   autoBookSupplyId?: string;
+  continueUntilFound?: boolean;
+  minSlotsRequired?: number;
+  maxConsecutiveEmptyCycles?: number;
 }
 
 export interface FoundSlot {
@@ -44,6 +57,9 @@ export interface ContinuousSearchResult {
   error?: string;
   runId: string;
   taskId?: string;
+  consecutiveEmptyCycles?: number;
+  minSlotsRequired?: number;
+  continueUntilFound?: boolean;
 }
 
 export class ContinuousSlotSearchService {
@@ -51,350 +67,259 @@ export class ContinuousSlotSearchService {
   private stopRequested = false;
   private currentSearchId: string | null = null;
 
-  /**
-   * Запустить непрерывный поиск слотов
-   */
   async startContinuousSearch(config: ContinuousSearchConfig): Promise<ContinuousSearchResult> {
-    if (this.isSearching) {
-      throw new Error('Search is already in progress');
+    console.log('🚀 Starting continuous search with config:', {
+      taskId: config.taskId,
+      userId: config.userId,
+      runId: config.runId,
+      warehouseIds: config.warehouseIds,
+      boxTypeIds: config.boxTypeIds,
+      coefficientMin: config.coefficientMin,
+      coefficientMax: config.coefficientMax,
+      dateFrom: config.dateFrom,
+      dateTo: config.dateTo
+    });
+
+    if (this.isSearching && this.currentSearchId === config.taskId) {
+      console.log('❌ Search is already in progress for this task, throwing error');
+      throw new Error('Search is already in progress for this task');
     }
 
+    if (this.isSearching && this.currentSearchId !== config.taskId) {
+      console.log('⚠️ Another search is in progress, stopping it first');
+      this.stopRequested = true;
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    console.log('✅ Setting search state to active');
     this.isSearching = true;
     this.stopRequested = false;
     this.currentSearchId = config.taskId;
 
     const startTime = Date.now();
     let totalSearches = 0;
-    const foundSlots: FoundSlot[] = [];
+    let foundSlots: FoundSlot[] = [];
+    let searchStopped = false;
 
     try {
-      // Получаем информацию о задаче
+      console.log('🔍 Получение задачи из базы данных...');
       const task = await prisma.task.findUnique({
         where: { id: config.taskId },
         include: { user: true },
       });
+      if (!task) throw new Error('Task not found');
+      console.log(`✅ Задача найдена: ${task.name} (${task.taskNumber})`);
 
-      if (!task) {
-        throw new Error('Task not found');
-      }
-
-      // Получаем токен пользователя
+      console.log('🔑 Получение SUPPLIES токена из настроек пользователя...');
+      
+      // Получаем токен напрямую из базы данных, как в настройках
       const suppliesToken = await prisma.userToken.findFirst({
-        where: {
-          userId: config.userId,
-          category: 'SUPPLIES',
-          isActive: true,
+        where: { 
+          userId: config.userId, 
+          category: 'SUPPLIES', 
+          isActive: true 
         },
+        orderBy: { createdAt: 'desc' }
       });
-
+      
       if (!suppliesToken) {
-        // Диагностика: проверяем, есть ли токены у пользователя вообще
-        const userTokens = await prisma.userToken.findMany({
-          where: { userId: config.userId },
-          select: { category: true, isActive: true }
-        });
-        
-        console.error(`No active supplies token found for user ${config.userId}`);
-        console.error(`User has ${userTokens.length} tokens:`, userTokens);
-        
-        throw new Error(`No active supplies token found. User has ${userTokens.length} tokens. Please add a SUPPLIES token in settings.`);
+        throw new Error('No active SUPPLIES token found in user settings. Please add a SUPPLIES token in Settings → Tokens');
       }
+      
+      console.log(`✅ SUPPLIES токен найден в настройках: ${suppliesToken.id}`);
 
-      // Расшифровываем токен
-      const decryptedToken = decrypt(suppliesToken.tokenEncrypted);
-
-      // Создаем WB клиент
-      const wbClient = WBClientFactory.createSuppliesClient(decryptedToken);
-
-      // Обновляем статус задачи на RUNNING (если поле существует)
+      console.log('🔓 Расшифровка токена...');
+      let decryptedToken;
       try {
-        await prisma.task.update({
-          where: { id: config.taskId },
-          data: { status: 'RUNNING' } as any,
+        decryptedToken = decrypt(suppliesToken.tokenEncrypted);
+        console.log('✅ Токен расшифрован');
+      } catch (decryptError) {
+        console.error('❌ Ошибка расшифровки токена:', decryptError);
+        console.error('📊 Детали токена:', {
+          tokenId: suppliesToken.id,
+          tokenLength: suppliesToken.tokenEncrypted?.length || 0,
+          tokenPreview: suppliesToken.tokenEncrypted?.substring(0, 50) + '...' || 'undefined',
+          createdAt: suppliesToken.createdAt,
+          isActive: suppliesToken.isActive
         });
-      } catch (error) {
-        console.log('Status field not available in Task model');
+        throw new Error(`Token decryption failed: ${decryptError instanceof Error ? decryptError.message : String(decryptError)}`);
       }
 
-      // Обновляем статус run на RUNNING
-      await prisma.run.update({
-        where: { id: config.runId },
-        data: { status: 'RUNNING' },
+      console.log('🌐 Создание WB клиента...');
+      let wbClient;
+      try {
+        wbClient = WBClientFactory.createSuppliesClient(decryptedToken);
+        console.log('✅ WB клиент создан');
+      } catch (clientError) {
+        console.error('❌ Ошибка создания WB клиента:', clientError);
+        throw new Error(`Failed to create WB client: ${clientError instanceof Error ? clientError.message : String(clientError)}`);
+      }
+
+      // Обновляем статусы
+      try {
+        await prisma.task.update({ where: { id: config.taskId }, data: { status: 'RUNNING' } as any });
+      } catch { /* поле status может отсутствовать */ }
+
+      await prisma.run.update({ where: { id: config.runId }, data: { status: 'RUNNING' } });
+
+      await this.logRunMessage(config.runId, 'INFO', `Starting continuous slot search for task ${task.id}`, { taskId: config.taskId });
+
+      const maxCycles = config.maxSearchCycles ?? 1000;
+      const searchDelay = config.searchDelay ?? 30000;
+      const maxExecutionTime = config.maxExecutionTime ?? 7 * 24 * 60 * 60 * 1000;
+      const continueUntilFound = false; // Останавливаем поиск после находки
+      const minSlotsRequired = 1; // Минимум 1 слот для остановки
+      const maxConsecutiveEmptyCycles = config.maxConsecutiveEmptyCycles ?? 10;
+
+      console.log(`⚙️ Параметры поиска:`, {
+        maxCycles,
+        searchDelay: `${searchDelay}ms`,
+        maxExecutionTime: `${maxExecutionTime}ms`,
+        continueUntilFound,
+        minSlotsRequired,
+        maxConsecutiveEmptyCycles
       });
 
-      // Логируем начало поиска
-      await this.logRunMessage(config.runId, 'INFO', `Starting continuous slot search for task ${task.id}`, {
-        taskId: config.taskId,
-        config: {
-          warehouseIds: config.warehouseIds,
-          boxTypeIds: config.boxTypeIds,
-          coefficientRange: `${config.coefficientMin}-${config.coefficientMax}`,
-          dateRange: `${config.dateFrom} to ${config.dateTo}`,
-          autoBook: config.autoBook,
-        },
-      });
+      let consecutiveEmptyCycles = 0;
 
-      const maxCycles = config.maxSearchCycles || 1000; // По умолчанию 1000 циклов
-      const searchDelay = config.searchDelay || 30000; // 30 секунд между поисками
-      const maxExecutionTime = config.maxExecutionTime || 7 * 24 * 60 * 60 * 1000; // 7 дней
+      console.log(`🚀 Начинаем цикл поиска слотов (максимум ${maxCycles} циклов)`);
 
-      // Основной цикл поиска
       for (let cycle = 1; cycle <= maxCycles; cycle++) {
-        // Проверяем, не запрошена ли остановка
-        if (this.stopRequested) {
-          await this.logRunMessage(config.runId, 'INFO', 'Search stopped by user request', { cycle });
-          break;
-        }
-
-        // Проверяем максимальное время выполнения
-        if (Date.now() - startTime > maxExecutionTime) {
-          await this.logRunMessage(config.runId, 'WARN', 'Search stopped due to max execution time', { 
-            cycle, 
-            executionTime: Date.now() - startTime 
-          });
-          break;
-        }
+        if (this.stopRequested) break;
+        if (Date.now() - startTime > maxExecutionTime) break;
 
         try {
           totalSearches++;
+          console.log(`🔄 Starting search cycle ${cycle}/${maxCycles} for task ${config.taskId}`);
 
-          await this.logRunMessage(config.runId, 'INFO', `Search cycle ${cycle}/${maxCycles}`, {
-            cycle,
-            maxCycles,
-            searchDelay,
-            foundSlotsCount: foundSlots.length,
-          });
-
-          // Выполняем поиск слотов
           const searchResult = await wbClient.searchAvailableSlots(
             config.warehouseIds,
             config.boxTypeIds,
             config.dateFrom,
             config.dateTo,
             config.coefficientMin,
-            true // allowUnload
+            true
+          );
+          
+          console.log(`📊 Search cycle ${cycle} completed: ${searchResult?.length || 0} slots found`);
+          console.log(`🔍 searchResult type:`, typeof searchResult, 'isArray:', Array.isArray(searchResult));
+
+          if (!searchResult || !Array.isArray(searchResult)) {
+            console.warn(`⚠️ searchResult is not an array:`, searchResult);
+            consecutiveEmptyCycles++;
+            continue;
+          }
+
+          console.log(`🔍 Начинаем дополнительную фильтрацию ${searchResult.length} слотов...`);
+          console.log(`🔍 Параметры фильтрации:`);
+          console.log(`   - Максимальный коэффициент: ${config.coefficientMax}`);
+          console.log(`   - Разгрузка разрешена: true (только с allowUnload: true)`);
+          
+          const validSlots = searchResult.filter(slot => 
+            (slot.coefficient ?? 0) <= config.coefficientMax && 
+            slot.allowUnload === true
           );
 
-          // Фильтруем найденные слоты по максимальному коэффициенту
-          const validSlots = searchResult.filter((slot: any) => {
-            const coefficient = slot.coefficient || 0;
-            return coefficient <= config.coefficientMax;
-          });
+          console.log(`🔍 Результат фильтрации: ${searchResult.length} → ${validSlots.length} слотов`);
+          console.log(`🔍 Фильтры: коэффициент <= ${config.coefficientMax}, allowUnload === true`);
 
           if (validSlots.length > 0) {
-            await this.logRunMessage(config.runId, 'INFO', `Found ${validSlots.length} valid slots in cycle ${cycle}`, {
-              cycle,
-              slots: validSlots.map(slot => ({
-                warehouseId: slot.warehouseID,
-                date: slot.date,
-                coefficient: slot.coefficient,
-                boxTypeId: slot.boxTypeID,
-                warehouseName: slot.warehouseName,
-              })),
-            });
-
-            // Добавляем найденные слоты
+            console.log(`🎯 Найдено ${validSlots.length} подходящих слотов в цикле ${cycle}:`);
+            
             for (const slot of validSlots) {
               const foundSlot: FoundSlot = {
                 warehouseId: slot.warehouseID,
-                warehouseName: slot.warehouseName || `Склад ${slot.warehouseID}`,
+                warehouseName: slot.warehouseName ?? `Склад ${slot.warehouseID}`,
                 date: slot.date,
-                timeSlot: '09:00-18:00', // WB API не предоставляет временные слоты
-                coefficient: slot.coefficient || 0,
+                timeSlot: '09:00-18:00',
+                coefficient: slot.coefficient ?? 0,
                 available: true,
                 boxTypes: [slot.boxTypeID],
-                supplyId: undefined, // Не предоставляется API
               };
-
               foundSlots.push(foundSlot);
 
-              // Сохраняем слот в базу данных
+              console.log(`  📦 Слот: ${slot.warehouseName} (${slot.warehouseID}) - ${slot.date} - Коэффициент: ${slot.coefficient}`);
+
               try {
                 await prisma.foundSlot.create({
                   data: {
                     runId: config.runId,
                     userId: config.userId,
                     warehouseId: slot.warehouseID,
-                    warehouseName: slot.warehouseName || `Склад ${slot.warehouseID}`,
+                    warehouseName: slot.warehouseName ?? `Склад ${slot.warehouseID}`,
                     date: slot.date,
                     timeSlot: '09:00-18:00',
-                    coefficient: slot.coefficient || 0,
+                    coefficient: slot.coefficient ?? 0,
                     available: true,
                     boxTypes: [slot.boxTypeID],
-                    supplyId: undefined,
                   },
                 });
+                console.log(`  ✅ Слот сохранен в базу данных`);
               } catch (dbError) {
-                console.error('Error saving found slot to database:', dbError);
-              }
-
-              // Если включено автобронирование, запускаем его
-              if (config.autoBook && config.autoBookSupplyId) {
-                try {
-                  await this.logRunMessage(config.runId, 'INFO', `Starting auto-booking for slot`, {
-                    slot: foundSlot,
-                    supplyId: config.autoBookSupplyId,
-                  });
-
-                  const autoBookingService = new AutoBookingService();
-                  const bookingResult = await autoBookingService.startBooking({
-                    taskId: config.taskId,
-                    userId: config.userId,
-                    runId: config.runId,
-                    slotId: `${slot.warehouseID}-${slot.date}-${slot.boxTypeID}`,
-                    supplyId: config.autoBookSupplyId,
-                    warehouseId: slot.warehouseID,
-                    boxTypeId: slot.boxTypeID,
-                    date: slot.date,
-                    coefficient: slot.coefficient || 1.0,
-                  });
-
-                  if (bookingResult.success) {
-                    await this.logRunMessage(config.runId, 'INFO', 'Auto-booking successful', {
-                      bookingId: bookingResult.bookingId,
-                      slot: foundSlot,
-                    });
-
-                    // Отправляем уведомление о успешном автобронировании
-                    try {
-                      const telegramService = new TelegramService();
-                      await telegramService.notifyBookingSuccess(
-                        config.userId,
-                        config.taskId,
-                        task.name || 'Задача поиска слотов',
-                        foundSlot,
-                        bookingResult.bookingId!
-                      );
-                      await this.logRunMessage(config.runId, 'INFO', 'Booking success notification sent', {
-                        bookingId: bookingResult.bookingId,
-                      });
-                    } catch (telegramError) {
-                      await this.logRunMessage(config.runId, 'ERROR', 'Failed to send booking success notification', {
-                        error: telegramError instanceof Error ? telegramError.message : 'Unknown error',
-                      });
-                    }
-
-                    // Обновляем статус задачи на BOOKING (если поле существует)
-                    try {
-        await prisma.task.update({
-          where: { id: config.taskId },
-          data: { status: 'BOOKING' } as any,
-        });
-                    } catch (error) {
-                      console.log('Status field not available in Task model');
-                    }
-                  } else {
-                    await this.logRunMessage(config.runId, 'ERROR', 'Auto-booking failed', {
-                      error: bookingResult.error,
-                      slot: foundSlot,
-                    });
-
-                    // Отправляем уведомление об ошибке автобронирования
-                    try {
-                      const telegramService = new TelegramService();
-                      await telegramService.notifyBookingError(
-                        config.userId,
-                        config.taskId,
-                        task.name || 'Задача поиска слотов',
-                        foundSlot,
-                        bookingResult.error || 'Unknown error'
-                      );
-                    } catch (telegramError) {
-                      await this.logRunMessage(config.runId, 'ERROR', 'Failed to send booking error notification', {
-                        error: telegramError instanceof Error ? telegramError.message : 'Unknown error',
-                      });
-                    }
-                  }
-                } catch (bookingError) {
-                  await this.logRunMessage(config.runId, 'ERROR', 'Auto-booking error', {
-                    error: bookingError instanceof Error ? bookingError.message : 'Unknown error',
-                    slot: foundSlot,
-                  });
-                }
+                console.error('❌ Ошибка сохранения слота:', dbError);
               }
             }
 
-            // Если нашли слоты и не требуется автобронирование, отправляем уведомление и останавливаем поиск
-            if (!config.autoBook) {
-              await this.logRunMessage(config.runId, 'INFO', 'Found slots, stopping search', {
-                foundSlotsCount: foundSlots.length,
-                cycle,
-              });
+            consecutiveEmptyCycles = 0;
 
-              // Отправляем уведомление в Telegram о найденных слотах
+            if (foundSlots.length >= minSlotsRequired) {
+              await this.logRunMessage(config.runId, 'INFO', `Found enough slots (${foundSlots.length}/${minSlotsRequired}), stopping search`);
+              console.log(`🎉 Найдено достаточно слотов (${foundSlots.length}/${minSlotsRequired}), останавливаем поиск`);
+              
+              // Отправляем уведомление пользователю
               try {
-                const telegramService = new TelegramService();
-                await telegramService.notifySlotsFound(
-                  config.userId,
-                  config.taskId,
-                  task.name || 'Задача поиска слотов',
-                  foundSlots
-                );
-                await this.logRunMessage(config.runId, 'INFO', 'Telegram notification sent', {
-                  foundSlotsCount: foundSlots.length,
-                });
-              } catch (telegramError) {
-                await this.logRunMessage(config.runId, 'ERROR', 'Failed to send Telegram notification', {
-                  error: telegramError instanceof Error ? telegramError.message : 'Unknown error',
-                });
+                await this.sendNotification(config.userId, `Найдено ${foundSlots.length} слотов! Поиск остановлен.`, foundSlots.length, foundSlots);
+              } catch (notifyError) {
+                console.error('Ошибка отправки уведомления:', notifyError);
               }
-
+              
+              searchStopped = true;
               break;
             }
+
           } else {
-            await this.logRunMessage(config.runId, 'DEBUG', `No valid slots found in cycle ${cycle}`, {
-              cycle,
-              totalSearches,
-            });
+            consecutiveEmptyCycles++;
+            await this.logRunMessage(config.runId, 'DEBUG', `No valid slots found in cycle ${cycle} (${consecutiveEmptyCycles}/${maxConsecutiveEmptyCycles} consecutive empty cycles)`);
+            if (consecutiveEmptyCycles >= maxConsecutiveEmptyCycles) break;
           }
 
-          // Ждем перед следующим циклом поиска
-          if (cycle < maxCycles && !this.stopRequested) {
-            await this.logRunMessage(config.runId, 'DEBUG', `Waiting ${searchDelay}ms before next search`, {
-              cycle,
-              nextCycle: cycle + 1,
-            });
+          if (cycle < maxCycles && !this.stopRequested && consecutiveEmptyCycles < maxConsecutiveEmptyCycles) {
             await new Promise(resolve => setTimeout(resolve, searchDelay));
           }
-
         } catch (searchError) {
-          await this.logRunMessage(config.runId, 'ERROR', `Search error in cycle ${cycle}`, {
+          console.error(`❌ Search error in cycle ${cycle}:`, searchError);
+          await this.logRunMessage(config.runId, 'ERROR', `Search error in cycle ${cycle}: ${searchError instanceof Error ? searchError.message : String(searchError)}`, {
+            error: searchError,
             cycle,
-            error: searchError instanceof Error ? searchError.message : 'Unknown error',
+            warehouseIds: config.warehouseIds,
+            boxTypeIds: config.boxTypeIds,
+            timestamp: new Date().toISOString()
           });
-
-          // Продолжаем поиск даже при ошибках
-          if (cycle < maxCycles && !this.stopRequested) {
-            await new Promise(resolve => setTimeout(resolve, searchDelay));
+          
+          // Если это критическая ошибка, останавливаем поиск
+          if (searchError instanceof Error && (
+            searchError.message.includes('Rate limit') ||
+            searchError.message.includes('Unauthorized') ||
+            searchError.message.includes('Forbidden') ||
+            searchError.message.includes('Network error')
+          )) {
+            console.error(`🚨 Critical error detected, stopping search: ${searchError.message}`);
+            break;
           }
         }
       }
 
-      // Обновляем статус задачи (если поле существует)
       const finalStatus = foundSlots.length > 0 ? 'SUCCESS' : 'FAILED';
       try {
         await prisma.task.update({
           where: { id: config.taskId },
-          data: { 
-            status: finalStatus,
-            enabled: foundSlots.length > 0 ? false : true, // Закрываем задачу если найдены слоты
-          } as any,
+          data: { status: finalStatus, enabled: foundSlots.length === 0 } as any,
         });
-        
-        if (foundSlots.length > 0) {
-          await this.logRunMessage(config.runId, 'INFO', 'Task completed and closed automatically', {
-            foundSlotsCount: foundSlots.length,
-            taskId: config.taskId,
-          });
-        }
-      } catch (error) {
-        console.log('Status field not available in Task model');
-      }
+      } catch {}
 
-      // Обновляем статус run
       await prisma.run.update({
         where: { id: config.runId },
-        data: { 
+        data: {
           status: finalStatus,
           finishedAt: new Date(),
           foundSlots: foundSlots.length,
@@ -407,14 +332,6 @@ export class ContinuousSlotSearchService {
         },
       });
 
-      await this.logRunMessage(config.runId, 'INFO', 'Continuous search completed', {
-        foundSlotsCount: foundSlots.length,
-        totalSearches,
-        searchTime: Date.now() - startTime,
-        finalStatus,
-        taskId: task.id,
-      });
-
       return {
         success: true,
         foundSlots,
@@ -422,39 +339,20 @@ export class ContinuousSlotSearchService {
         searchTime: Date.now() - startTime,
         stoppedEarly: this.stopRequested,
         runId: config.runId,
-        taskId: task.id,
+        taskId: config.taskId,
+        consecutiveEmptyCycles,
+        minSlotsRequired,
+        continueUntilFound,
       };
-
     } catch (error) {
-      // Обновляем статус на FAILED при ошибке (если поле существует)
-      try {
-        await prisma.task.update({
-          where: { id: config.taskId },
-          data: { status: 'FAILED' } as any,
-        });
-      } catch (error) {
-        console.log('Status field not available in Task model');
-      }
-
+      console.error('❌ Критическая ошибка в continuous search:', error);
+      console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
+      
       await prisma.run.update({
         where: { id: config.runId },
-        data: { 
-          status: 'FAILED',
-          finishedAt: new Date(),
-          summary: {
-            error: error instanceof Error ? error.message : 'Unknown error',
-            totalSearches,
-            searchTime: Date.now() - startTime,
-          },
-        },
+        data: { status: 'FAILED', finishedAt: new Date() },
       });
-
-      await this.logRunMessage(config.runId, 'ERROR', 'Continuous search failed', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        totalSearches,
-        searchTime: Date.now() - startTime,
-      });
-
+      
       return {
         success: false,
         foundSlots: [],
@@ -464,55 +362,84 @@ export class ContinuousSlotSearchService {
         error: error instanceof Error ? error.message : 'Unknown error',
         runId: config.runId,
       };
-
     } finally {
       this.isSearching = false;
       this.currentSearchId = null;
     }
   }
 
-  /**
-   * Остановить поиск
-   */
   async stopSearch(): Promise<void> {
     if (this.isSearching) {
       this.stopRequested = true;
-      await this.logRunMessage(this.currentSearchId || '', 'INFO', 'Stop requested for continuous search');
+      await this.logRunMessage(this.currentSearchId ?? '', 'INFO', 'Stop requested for continuous search');
     }
   }
 
-  /**
-   * Проверить, выполняется ли поиск
-   */
   isSearchInProgress(): boolean {
     return this.isSearching;
   }
 
-  /**
-   * Получить ID текущего поиска
-   */
   getCurrentSearchId(): string | null {
     return this.currentSearchId;
   }
 
-  /**
-   * Логирование сообщений в run
-   */
   private async logRunMessage(runId: string, level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR', message: string, meta?: any): Promise<void> {
     try {
-      await prisma.runLog.create({
-        data: {
-          runId,
-          level,
-          message,
-          meta: meta || {},
-        },
+      // Проверяем, существует ли run в базе данных
+      const run = await prisma.run.findUnique({
+        where: { id: runId }
+      });
+      
+      if (!run) {
+        console.warn(`⚠️ Run ${runId} not found, skipping log message: ${message}`);
+        return;
+      }
+      
+      await prisma.runLog.create({ 
+        data: { 
+          runId, 
+          level, 
+          message, 
+          meta: meta || {} 
+        } 
       });
     } catch (error) {
       console.error('Failed to log run message:', error);
+      // Не выбрасываем ошибку, чтобы не прерывать основной процесс
     }
   }
+
+  private async sendNotification(userId: string, message: string, slotsCount: number = 0, foundSlots: any[] = []): Promise<void> {
+    try {
+      // Используем новый сервис интеграции Telegram
+      const { telegramIntegrationService } = await import('@/lib/services/telegram-integration-service');
+      
+      console.log('📱 Попытка отправки Telegram уведомления через новую систему...');
+
+      // Отправляем уведомление через новый сервис интеграции
+      const success = await telegramIntegrationService.notifySlotsFound({
+        userId,
+        taskId: 'continuous-search', // Для непрерывного поиска используем специальный ID
+        taskName: 'Непрерывный поиск слотов',
+        slots: foundSlots.map(slot => ({
+          warehouseId: slot.warehouseId,
+          warehouseName: slot.warehouseName || `Склад ${slot.warehouseId}`,
+          date: slot.date,
+          coefficient: slot.coefficient,
+          boxTypes: slot.boxTypes || []
+        }))
+      });
+      
+      if (success) {
+        console.log(`✅ Telegram уведомление отправлено пользователю ${userId} о ${foundSlots.length} слотах`);
+      } else {
+        console.warn(`⚠️ Не удалось отправить Telegram уведомление пользователю ${userId}`);
+      }
+    } catch (error) {
+      console.error('❌ Ошибка отправки Telegram уведомления:', error);
+    }
+  }
+
 }
 
-// Экспортируем singleton
 export const continuousSlotSearchService = new ContinuousSlotSearchService();

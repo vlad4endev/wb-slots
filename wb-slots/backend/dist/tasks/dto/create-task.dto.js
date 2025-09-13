@@ -72,4 +72,14 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateTaskDto.prototype, "autoBookSupplyId", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        example: 'WBS123456789',
+        description: 'ID выбранной поставки для автобронирования',
+        required: false
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateTaskDto.prototype, "chosenSupplyId", void 0);
 //# sourceMappingURL=create-task.dto.js.map

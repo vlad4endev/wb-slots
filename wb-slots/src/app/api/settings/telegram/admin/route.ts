@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
+import { botSettingsService } from '@/lib/services/bot-settings.service';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,11 +15,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied. Developer role required.' }, { status: 403 });
     }
 
-    // Get bot token from environment
-    const botToken = process.env.TELEGRAM_BOT_TOKEN || '';
+    // Get bot token from database or environment
+    const dbBotToken = await botSettingsService.getTelegramBotToken();
+    const envBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
+    const botToken = dbBotToken || envBotToken;
 
     // Get notification templates (with error handling for missing table)
-    let templates = [];
+    let templates: any[] = [];
     try {
       templates = await prisma.notificationTemplate.findMany({
         orderBy: { createdAt: 'desc' }
@@ -30,6 +33,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       botToken: botToken ? '***configured***' : '',
+      botTokenConfigured: !!botToken,
       templates
     });
   } catch (error) {
@@ -54,21 +58,65 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'update_bot_token':
-        // Note: In production, you'd want to store this securely
-        // For now, we'll just validate it
         if (!data.botToken) {
           return NextResponse.json({ error: 'Bot token is required' }, { status: 400 });
         }
         
-        // Test the token
-        const testResponse = await fetch(`https://api.telegram.org/bot${data.botToken}/getMe`);
-        if (!testResponse.ok) {
-          return NextResponse.json({ error: 'Invalid bot token' }, { status: 400 });
+        // Skip validation if explicitly requested (for offline environments)
+        if (data.skipValidation) {
+          console.log('Skipping bot token validation as requested');
+        } else {
+          // Test the token with timeout and proper error handling
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+          
+          const testResponse = await fetch(`https://api.telegram.org/bot${data.botToken}/getMe`, {
+            signal: controller.signal,
+            headers: {
+              'User-Agent': 'WB-Slots/1.0'
+            }
+          });
+          
+          clearTimeout(timeoutId);
+          
+          if (!testResponse.ok) {
+            const errorText = await testResponse.text();
+            console.error('Telegram API error:', testResponse.status, errorText);
+            return NextResponse.json({ 
+              error: `Invalid bot token (HTTP ${testResponse.status})` 
+            }, { status: 400 });
+          }
+          
+          const botInfo = await testResponse.json();
+          if (!botInfo.ok) {
+            return NextResponse.json({ 
+              error: `Telegram API error: ${botInfo.description}` 
+            }, { status: 400 });
+          }
+        } catch (error) {
+          if (error instanceof Error && error.name === 'AbortError') {
+            return NextResponse.json({ 
+              error: 'Connection timeout. Please check your internet connection and try again.' 
+            }, { status: 408 });
+          }
+          
+          console.error('Network error testing bot token:', error);
+          return NextResponse.json({ 
+            error: `Network error: ${error instanceof Error ? error.message : 'Unknown error'}. Please check your internet connection.` 
+          }, { status: 503 });
+        }
+        }
+
+        // Save token to database
+        const saved = await botSettingsService.setTelegramBotToken(data.botToken);
+        if (!saved) {
+          return NextResponse.json({ error: 'Failed to save bot token' }, { status: 500 });
         }
 
         return NextResponse.json({ 
           success: true, 
-          message: 'Bot token validated successfully. Please update TELEGRAM_BOT_TOKEN in .env.local' 
+          message: 'Bot token saved successfully' 
         });
 
       case 'create_template':

@@ -8,11 +8,19 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Request as ExpressRequest } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+
+interface AuthenticatedRequest extends ExpressRequest {
+  user: {
+    sub: string;
+    email: string;
+  };
+}
 
 @ApiTags('Аутентификация')
 @Controller('auth')
@@ -43,7 +51,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Получение профиля текущего пользователя' })
   @ApiResponse({ status: 200, description: 'Профиль пользователя' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
-  async getProfile(@Request() req) {
+  async getProfile(@Request() req: AuthenticatedRequest) {
     return this.authService.getProfile(req.user.sub);
   }
 }

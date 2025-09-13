@@ -4,11 +4,11 @@ import { ApiProperty } from '@nestjs/swagger';
 export class CreateWarehouseDto {
   @ApiProperty({ example: 123456, description: 'ID склада в системе WB' })
   @IsNumber()
-  warehouseId: number;
+  warehouseId!: number;
 
   @ApiProperty({ example: 'Подольск', description: 'Название склада' })
   @IsString()
-  warehouseName: string;
+  warehouseName!: string;
 
   @ApiProperty({ example: true, description: 'Активен ли склад для поиска', default: true })
   @IsOptional()

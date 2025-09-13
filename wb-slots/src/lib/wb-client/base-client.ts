@@ -1,14 +1,17 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { WBAPIResponse, WBClientError, WBRequestOptions, RateLimitInfo } from './types';
+import { rateLimitService } from '../security/rate-limit-service';
 
 export abstract class BaseWBClient {
   protected client: AxiosInstance;
   protected token: string;
   protected baseURL: string;
+  protected userId?: string;
 
   constructor(token: string, baseURL: string, options: WBRequestOptions = {}) {
     this.token = token;
     this.baseURL = baseURL;
+    this.userId = options.userId;
 
     this.client = axios.create({
       baseURL,
@@ -25,7 +28,25 @@ export abstract class BaseWBClient {
   private setupInterceptors(): void {
     // Request interceptor
     this.client.interceptors.request.use(
-      (config) => {
+      async (config) => {
+        // Check rate limit before making request
+        if (this.userId) {
+          try {
+            const rateLimitResult = await rateLimitService.checkWBApiRateLimit(this.userId);
+            if (!rateLimitResult.allowed) {
+              throw new WBClientError(
+                'Rate limit exceeded. Please try again later.',
+                429,
+                'RATE_LIMIT_EXCEEDED',
+                { retryAfter: rateLimitResult.retryAfter }
+              );
+            }
+          } catch (rateLimitError) {
+            console.warn(`⚠️ Rate limit check failed, continuing without rate limiting:`, rateLimitError);
+            // Продолжаем без rate limiting если Redis недоступен
+          }
+        }
+
         // Add timestamp to prevent caching
         config.params = {
           ...config.params,
@@ -47,9 +68,23 @@ export abstract class BaseWBClient {
 
         return response;
       },
-      (error) => {
+      async (error) => {
         if (error.response) {
           const { status, data } = error.response;
+          
+          // Handle rate limiting from server
+          if (status === 429) {
+            const retryAfter = error.response.headers['retry-after'];
+            console.warn(`🚨 WB API rate limit exceeded. Retry after: ${retryAfter}s`);
+            
+            throw new WBClientError(
+              'Rate limit exceeded. Please try again later.',
+              status,
+              'RATE_LIMIT_EXCEEDED',
+              { retryAfter: parseInt(retryAfter) || 60 }
+            );
+          }
+
           const errorMessage = data?.errorText || data?.message || error.message;
           const errorCode = data?.code || `HTTP_${status}`;
 

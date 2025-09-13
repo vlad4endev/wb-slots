@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +25,7 @@ import {
   FiShield as Shield,
   FiSearch as Search,
   FiMessageSquare as MessageSquare,
+  FiMessageCircle as MessageCircle,
   FiMessageSquare as Bot,
   FiBell as Bell,
   FiGlobe as Globe,
@@ -49,6 +50,7 @@ import {
 } from 'react-icons/fi';
 import Link from 'next/link';
 import DashboardLayout from '@/app/dashboard-layout';
+import TelegramSettings from '@/components/telegram-settings';
 
 interface UserToken {
   id: string;
@@ -96,11 +98,13 @@ export default function SettingsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [error, setError] = useState('');
   const [showToken, setShowToken] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncingWarehouses, setIsSyncingWarehouses] = useState(false);
   const [warehouseStats, setWarehouseStats] = useState({ total: 0, active: 0, inactive: 0 });
+  const [showTelegramSettings, setShowTelegramSettings] = useState(false);
 
   // Формы
   const [newToken, setNewToken] = useState({
@@ -123,11 +127,7 @@ export default function SettingsPage() {
     timezone: 'Europe/Moscow',
   });
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
       setError('');
@@ -142,23 +142,37 @@ export default function SettingsPage() {
         return;
       }
       
-      // Загружаем данные с обработкой ошибок
-      let tokensData = { success: false, error: 'Failed to load' };
-      let warehousesData = { success: false, error: 'Failed to load' };
+      // Загружаем данные параллельно для ускорения
+      const [tokensRes, warehousesRes] = await Promise.allSettled([
+        fetch('/api/tokens'),
+        fetch('/api/warehouses/user')
+      ]);
 
-      try {
-        const tokensRes = await fetch('/api/tokens');
-        tokensData = await tokensRes.json();
-      } catch (error) {
-        console.error('Error loading tokens:', error);
+      // Обрабатываем результаты токенов
+      let tokensData = { success: false, error: 'Failed to load' };
+      if (tokensRes.status === 'fulfilled') {
+        try {
+          tokensData = await tokensRes.value.json();
+        } catch (error) {
+          console.error('Error parsing tokens response:', error);
+          tokensData = { success: false, error: 'Parse error' };
+        }
+      } else {
+        console.error('Error loading tokens:', tokensRes.reason);
         tokensData = { success: false, error: 'Network error' };
       }
 
-      try {
-        const warehousesRes = await fetch('/api/warehouses/user');
-        warehousesData = await warehousesRes.json();
-      } catch (error) {
-        console.error('Error loading warehouses:', error);
+      // Обрабатываем результаты складов
+      let warehousesData = { success: false, error: 'Failed to load' };
+      if (warehousesRes.status === 'fulfilled') {
+        try {
+          warehousesData = await warehousesRes.value.json();
+        } catch (error) {
+          console.error('Error parsing warehouses response:', error);
+          warehousesData = { success: false, error: 'Parse error' };
+        }
+      } else {
+        console.error('Error loading warehouses:', warehousesRes.reason);
         warehousesData = { success: false, error: 'Network error' };
       }
 
@@ -192,13 +206,21 @@ export default function SettingsPage() {
         phone: userData?.phone || '',
         timezone: userData?.timezone || 'Europe/Moscow',
       });
+      
+      setIsDataLoaded(true);
     } catch (error) {
       console.error('Error fetching data:', error);
       setError('Ошибка загрузки данных');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!isDataLoaded) {
+      fetchData();
+    }
+  }, [fetchData, isDataLoaded]);
 
   const handleAddToken = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,7 +253,7 @@ export default function SettingsPage() {
 
       const data = await response.json();
       if (data.success) {
-        setTokens(tokens.filter(token => token.id !== tokenId));
+        setTokens((tokens || []).filter(token => token.id !== tokenId));
         setError('');
       } else {
         setError(data.error || 'Ошибка удаления токена');
@@ -369,7 +391,7 @@ export default function SettingsPage() {
 
       const data = await response.json();
       if (data.success) {
-        setWarehouses(warehouses.filter(w => w.warehouseId !== warehouseId));
+        setWarehouses((warehouses || []).filter(w => w.warehouseId !== warehouseId));
         setError('');
       } else {
         setError(data.error || 'Ошибка удаления склада');
@@ -422,7 +444,7 @@ export default function SettingsPage() {
     }
   };
 
-  const filteredWarehouses = warehouseRefs.filter(warehouse =>
+  const filteredWarehouses = (warehouseRefs || []).filter(warehouse =>
     warehouse.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -463,14 +485,22 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                    Настройки
+                    Настройки системы
                   </h1>
                   <p className="text-gray-600 dark:text-gray-400">
-                    Управление профилем, токенами и складами
+                    Управление профилем, токенами, складами и Telegram
                   </p>
                 </div>
               </div>
               <div className="flex items-center space-x-3">
+                {/* Quick access to Telegram settings */}
+                <Link href="/settings/telegram">
+                  <Button variant="outline" size="sm" className="flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4" />
+                    Настройки Telegram
+                  </Button>
+                </Link>
+                
                 {profile && (
                   <div className="flex items-center space-x-2">
                     <Badge 
@@ -519,7 +549,7 @@ export default function SettingsPage() {
                     <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Токены</p>
                     <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{tokens.length}</p>
                     <p className="text-xs text-blue-700 dark:text-blue-300">
-                      {tokens.filter(t => t.isActive).length} активных
+                      {(tokens || []).filter(t => t.isActive).length} активных
                     </p>
                   </div>
                   <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
@@ -536,7 +566,7 @@ export default function SettingsPage() {
                     <p className="text-sm font-medium text-green-600 dark:text-green-400">Склады</p>
                     <p className="text-2xl font-bold text-green-900 dark:text-green-100">{warehouses.length}</p>
                     <p className="text-xs text-green-700 dark:text-green-300">
-                      {warehouses.filter(w => w.enabled).length} включены
+                      {(warehouses || []).filter(w => w.enabled).length} включены
                     </p>
                   </div>
                   <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
@@ -614,8 +644,8 @@ export default function SettingsPage() {
                     Склады и справочник
                   </TabsTrigger>
                   <TabsTrigger value="notifications" className="flex items-center gap-2">
-                    <Bell className="w-4 h-4" />
-                    Уведомления
+                    <MessageCircle className="w-4 h-4" />
+                    Telegram
                   </TabsTrigger>
                 </TabsList>
 
@@ -1202,7 +1232,7 @@ export default function SettingsPage() {
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
-                        <Bell className="w-5 h-5" />
+                        <MessageCircle className="w-5 h-5" />
                         Настройки уведомлений
                       </CardTitle>
                       <CardDescription>
@@ -1210,26 +1240,79 @@ export default function SettingsPage() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-6">
-                        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <div className="space-y-4">
+                        {/* Telegram Settings Button */}
+                        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
-                              <MessageSquare className="w-5 h-5 text-white" />
+                            <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
+                              <MessageCircle className="w-6 h-6 text-white" />
                             </div>
                             <div>
-                              <h3 className="font-medium text-gray-900 dark:text-white">Telegram</h3>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Уведомления в Telegram
+                              <h3 className="font-semibold text-gray-900 dark:text-white">Telegram уведомления</h3>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                                Настройка бота, управление пользователями и тестирование
                               </p>
                             </div>
                           </div>
-                          <Link href="/settings/telegram">
-                            <Button variant="outline">
-                              Настроить
-                            </Button>
-                          </Link>
+                          <Button
+                            onClick={() => setShowTelegramSettings(!showTelegramSettings)}
+                            variant={showTelegramSettings ? "outline" : "default"}
+                            className={showTelegramSettings ? "text-blue-600 border-blue-200 hover:bg-blue-50" : "bg-blue-600 hover:bg-blue-700"}
+                          >
+                            {showTelegramSettings ? (
+                              <>
+                                <XCircle className="w-4 h-4 mr-2" />
+                                Скрыть настройки
+                              </>
+                            ) : (
+                              <>
+                                <Settings className="w-4 h-4 mr-2" />
+                                Настроить Telegram
+                              </>
+                            )}
+                          </Button>
                         </div>
 
+                        {/* Telegram Settings (Collapsible) */}
+                        {showTelegramSettings && (
+                          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 animate-in slide-in-from-top-2 duration-300">
+                            <TelegramSettings compact={true} />
+                            
+                            {/* Link to advanced Telegram settings */}
+                            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h4 className="font-medium text-gray-900 dark:text-white">Расширенные настройки</h4>
+                                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    Управление токеном бота, шаблонами уведомлений и админскими функциями
+                                  </p>
+                                </div>
+                                <Link href="/settings/telegram">
+                                  <Button variant="outline" size="sm">
+                                    <Settings className="w-4 h-4 mr-2" />
+                                    Открыть настройки
+                                  </Button>
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Bot className="w-5 h-5" />
+                        Другие интеграции
+                      </CardTitle>
+                      <CardDescription>
+                        Дополнительные настройки интеграций
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
                         <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">

@@ -1,16 +1,41 @@
 import { prisma } from '../prisma';
+import { botSettingsService } from './bot-settings.service';
 
 export class TelegramService {
   private botToken: string | null = null;
   private prisma: any = null;
 
   constructor(prismaClient?: any) {
-    this.botToken = process.env.TELEGRAM_BOT_TOKEN || null;
     this.prisma = prismaClient;
-    
-    if (!this.botToken) {
-      console.warn('⚠️ TELEGRAM_BOT_TOKEN не настроен в переменных окружения');
+    // Initialize token synchronously for immediate use
+    this.initializeBotTokenSync();
+  }
+
+  private initializeBotTokenSync() {
+    // Try environment variable first for immediate availability
+    this.botToken = process.env.TELEGRAM_BOT_TOKEN || null;
+    if (this.botToken) {
+      console.log('TelegramService initialized with bot token from environment');
+    } else {
+      console.log('TelegramService initialized without token, will load from database on first use');
     }
+  }
+
+  private async ensureBotToken() {
+    if (this.botToken) {
+      return this.botToken;
+    }
+
+    // Load from database if not available
+    const dbToken = await botSettingsService.getTelegramBotToken();
+    if (dbToken) {
+      this.botToken = dbToken;
+      console.log('TelegramService loaded bot token from database');
+      return this.botToken;
+    }
+
+    console.warn('No Telegram bot token available');
+    return null;
   }
 
   /**
@@ -18,7 +43,8 @@ export class TelegramService {
    */
   async sendNotification(userId: string, message: string): Promise<boolean> {
     try {
-      if (!this.botToken) {
+      const token = await this.ensureBotToken();
+      if (!token) {
         console.warn('Telegram bot token not configured');
         return false;
       }
@@ -44,7 +70,7 @@ export class TelegramService {
       }
 
       // Отправляем сообщение через Telegram Bot API
-      const response = await fetch(`https://api.telegram.org/bot${this.botToken}/sendMessage`, {
+      const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -52,7 +78,7 @@ export class TelegramService {
         body: JSON.stringify({
           chat_id: telegramChatId,
           text: message,
-          parse_mode: 'HTML',
+          parse_mode: 'Markdown',
         }),
       });
 
@@ -120,8 +146,9 @@ export class TelegramService {
     templateType: string, 
     variables: Record<string, any> = {}
   ): Promise<boolean> {
-    if (!this.botToken) {
-      console.warn('⚠️ Telegram Bot Token не настроен в переменных окружения');
+    const token = await this.ensureBotToken();
+    if (!token) {
+      console.warn('⚠️ Telegram Bot Token не настроен');
       return false;
     }
 
@@ -180,7 +207,7 @@ export class TelegramService {
 
     try {
       // Отправляем сообщение через Telegram Bot API
-      const response = await fetch(`https://api.telegram.org/bot${this.botToken}/sendMessage`, {
+      const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -188,7 +215,7 @@ export class TelegramService {
         body: JSON.stringify({
           chat_id: telegramChatId,
           text: message,
-          parse_mode: 'HTML',
+          parse_mode: 'Markdown',
         }),
       });
 
@@ -295,7 +322,57 @@ export class TelegramService {
       return false;
     }
   }
+
+  /**
+   * Обновить токен бота
+   */
+  async updateBotToken(token: string): Promise<boolean> {
+    try {
+      const saved = await botSettingsService.setTelegramBotToken(token);
+      if (saved) {
+        this.botToken = token;
+        console.log('Bot token updated successfully');
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Failed to update bot token:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Проверить, настроен ли бот
+   */
+  async isBotConfigured(): Promise<boolean> {
+    if (this.botToken) {
+      return true;
+    }
+    
+    // Try to get token from database
+    const dbToken = await botSettingsService.getTelegramBotToken();
+    if (dbToken) {
+      this.botToken = dbToken;
+      return true;
+    }
+    
+    return false;
+  }
 }
 
-// Экспортируем singleton instance
-export const telegramService = new TelegramService();
+// Singleton instance - будет создан лениво
+let telegramServiceInstance: TelegramService | null = null;
+
+export function getTelegramService(): TelegramService {
+  if (!telegramServiceInstance) {
+    telegramServiceInstance = new TelegramService();
+  }
+  return telegramServiceInstance;
+}
+
+// Для обратной совместимости
+export const telegramService = {
+  get instance() {
+    return getTelegramService();
+  }
+};

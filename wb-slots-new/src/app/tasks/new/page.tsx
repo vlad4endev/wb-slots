@@ -126,15 +126,21 @@ export default function NewTaskPage() {
     setError('');
 
     try {
-      // Добавляем значения по умолчанию для скрытых полей
+      // Создаем данные задачи только с разрешенными полями
       const taskData = {
-        ...formData,
+        name: formData.name,
+        description: formData.description,
         enabled: true,
         scheduleCron: '', // Пустое - только ручной запуск
+        autoBook: formData.autoBook,
+        autoBookSupplyId: formData.autoBookSupplyId,
         priority: 5,
         filters: {
-          ...formData.filters,
+          coefficientMin: formData.filters.coefficientMin,
+          coefficientMax: formData.filters.coefficientMax,
           allowUnload: true,
+          warehouseIds: formData.filters.warehouseIds,
+          boxTypeIds: formData.filters.boxTypeIds,
           dates: {
             from: formData.filters.dates?.from ? new Date(formData.filters.dates.from).toISOString() : new Date().toISOString(),
             to: formData.filters.dates?.to ? new Date(formData.filters.dates.to).toISOString() : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),

@@ -1,4 +1,5 @@
 import { prisma } from './prisma';
+import { botSettingsService } from './services/bot-settings.service';
 
 export interface TelegramNotification {
   userId: string;
@@ -20,12 +21,36 @@ export interface TelegramNotification {
 }
 
 export class TelegramService {
-  private botToken: string;
+  private botToken: string | null = null;
   private baseUrl: string;
 
   constructor() {
-    this.botToken = process.env.TELEGRAM_BOT_TOKEN || '';
+    // Try to load token from environment first
+    this.botToken = process.env.TELEGRAM_BOT_TOKEN || null;
     this.baseUrl = process.env.TELEGRAM_WEBHOOK_URL || '';
+  }
+
+  /**
+   * Ensure bot token is loaded (from DB if not available)
+   */
+  private async ensureBotToken(): Promise<string | null> {
+    if (this.botToken) {
+      return this.botToken;
+    }
+
+    try {
+      const dbToken = await botSettingsService.getTelegramBotToken();
+      if (dbToken) {
+        this.botToken = dbToken;
+        console.log('✅ TelegramService loaded bot token from database');
+        return this.botToken;
+      }
+    } catch (error) {
+      console.warn('Failed to load bot token from database:', error);
+    }
+
+    console.warn('⚠️ Telegram bot token not available');
+    return null;
   }
 
   /**
@@ -33,6 +58,13 @@ export class TelegramService {
    */
   async sendNotification(notification: TelegramNotification): Promise<boolean> {
     try {
+      // Ensure bot token is available
+      const token = await this.ensureBotToken();
+      if (!token) {
+        console.warn('⚠️ Telegram bot token not available. Cannot send notification.');
+        return false;
+      }
+
       // Получаем настройки Telegram пользователя
       const userSettings = await this.getUserTelegramSettings(notification.userId);
       if (!userSettings || !userSettings.chatId) {
@@ -153,12 +185,13 @@ export class TelegramService {
    */
   private async sendMessage(chatId: string, message: string): Promise<boolean> {
     try {
-      if (!this.botToken) {
+      const token = await this.ensureBotToken();
+      if (!token) {
         console.log('⚠️ Telegram Bot Token не настроен');
         return false;
       }
 
-      const response = await fetch(`https://api.telegram.org/bot${this.botToken}/sendMessage`, {
+      const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

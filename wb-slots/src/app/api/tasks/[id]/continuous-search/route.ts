@@ -8,8 +8,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    console.log('🚀 POST /api/tasks/[id]/continuous-search - Starting continuous search request');
     const user = await requireAuth(request);
     const { id: taskId } = await params;
+    
+    console.log(`🔍 User: ${user.id}, Task ID: ${taskId}`);
 
     // Проверяем, существует ли задача
     const task = await prisma.task.findUnique({
@@ -17,14 +20,21 @@ export async function POST(
     });
 
     if (!task) {
+      console.log(`❌ Task not found: ${taskId}`);
       return NextResponse.json({
         success: false,
         error: 'Task not found',
       }, { status: 404 });
     }
 
+    console.log(`✅ Task found: ${task.name} (${task.taskNumber})`);
+
     // Проверяем, не запущен ли уже поиск
-    if (continuousSlotSearchService.isSearchInProgress()) {
+    const isSearchInProgress = continuousSlotSearchService.isSearchInProgress();
+    console.log(`🔍 Search in progress: ${isSearchInProgress}`);
+    
+    if (isSearchInProgress) {
+      console.log(`⚠️ Search already in progress, rejecting request`);
       return NextResponse.json({
         success: false,
         error: 'Search is already in progress',
@@ -32,6 +42,7 @@ export async function POST(
     }
 
     // Создаем новый run
+    console.log('📝 Creating new run for task...');
     const run = await prisma.run.create({
       data: {
         taskId: task.id,
@@ -40,9 +51,11 @@ export async function POST(
         startedAt: new Date(),
       },
     });
+    console.log(`✅ Run created: ${run.id}`);
 
     // Парсим фильтры задачи
     const filters = task.filters as any;
+    console.log('🔧 Task filters:', filters);
 
     // Создаем конфигурацию поиска
     const searchConfig = {
@@ -61,11 +74,17 @@ export async function POST(
       maxExecutionTime: 7 * 24 * 60 * 60 * 1000,
       autoBook: task.autoBook || false,
       autoBookSupplyId: task.autoBookSupplyId || '',
+      // Параметры циклического поиска (используем значения по умолчанию)
+      continueUntilFound: true,
+      minSlotsRequired: 1,
+      maxConsecutiveEmptyCycles: 10,
     };
 
     // Запускаем поиск асинхронно
+    console.log('⚙️ Search config:', searchConfig);
+    console.log('🚀 Starting continuous search asynchronously for task:', task.taskNumber);
     continuousSlotSearchService.startContinuousSearch(searchConfig).catch(error => {
-      console.error('Continuous search error:', error);
+      console.error('❌ Continuous search error:', error);
     });
 
     return NextResponse.json({
@@ -159,6 +178,16 @@ export async function GET(
     const isSearchInProgress = continuousSlotSearchService.isSearchInProgress();
     const currentSearchId = continuousSlotSearchService.getCurrentSearchId();
 
+    // Получаем найденные слоты для текущего запуска
+    const currentRun = task.runs[0]; // Самый последний запуск
+    let foundSlots: any[] = [];
+    if (currentRun) {
+      foundSlots = await prisma.foundSlot.findMany({
+        where: { runId: currentRun.id },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -175,6 +204,7 @@ export async function GET(
           isInProgress: isSearchInProgress,
           currentSearchId,
           isThisTaskSearching: currentSearchId === taskId,
+          foundSlotsCount: foundSlots.length,
         },
         runs: task.runs.map(run => ({
           id: run.id,
@@ -190,6 +220,17 @@ export async function GET(
             ts: log.ts,
             meta: log.meta,
           })),
+        })),
+        foundSlots: foundSlots.map(slot => ({
+          id: slot.id,
+          warehouseId: slot.warehouseId,
+          warehouseName: slot.warehouseName,
+          date: slot.date,
+          timeSlot: slot.timeSlot,
+          coefficient: slot.coefficient,
+          available: slot.available,
+          boxTypes: slot.boxTypes,
+          createdAt: slot.createdAt,
         })),
       },
     });
