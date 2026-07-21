@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Set auth cookie
-    setAuthCookie(response, token);
+    setAuthCookie(response, token, request);
 
     return response;
   } catch (error) {

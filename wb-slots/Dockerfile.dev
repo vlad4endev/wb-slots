@@ -1,30 +1,49 @@
-FROM node:20-alpine AS base 
- 
-# Install system dependencies 
-RUN apk add --no-cache libc6-compat chromium 
- 
-# Set working directory 
-WORKDIR /app 
- 
-# Set environment variables 
-ENV NODE_ENV=development 
-ENV PUPPETEER_SKIP_DOWNLOAD=true 
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser 
- 
-# Copy package files 
-COPY package*.json ./ 
- 
-# Install dependencies 
-RUN npm ci --include=dev 
- 
-# Copy source code 
-COPY . . 
- 
-# Generate Prisma client 
-RUN npx prisma generate 
- 
-# Expose port 
-EXPOSE 3000 
- 
-# Start command 
-CMD ["npm", "run", "dev"] 
+# ========================================
+# WB Slots - Development Dockerfile
+# Оптимизированный для разработки и тестирования
+# ========================================
+
+FROM node:18-alpine AS base
+
+# Установка системных зависимостей
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    freetype-dev \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    && rm -rf /var/cache/apk/*
+
+# Настройка Puppeteer для использования системного Chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+# Создание рабочей директории
+WORKDIR /app
+
+# Копирование package.json и package-lock.json
+COPY package*.json ./
+
+# Установка зависимостей
+RUN npm ci --only=production && npm cache clean --force
+
+# Копирование исходного кода
+COPY . .
+
+# Генерация Prisma клиента
+RUN npx prisma generate
+
+# Создание директорий для логов и скриншотов
+RUN mkdir -p logs screenshots
+
+# Установка прав доступа
+RUN chown -R node:node /app
+USER node
+
+# Экспорт портов
+EXPOSE 3000
+
+# Команда по умолчанию
+CMD ["npm", "run", "dev"]

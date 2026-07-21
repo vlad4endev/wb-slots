@@ -23,8 +23,19 @@ import {
   FiXCircle as XCircle,
   FiX as X,
   FiLoader as Loader2,
-  FiChevronDown as ChevronDown
+  FiChevronDown as ChevronDown,
+  FiInfo as Info
 } from 'react-icons/fi';
+import WarehouseSelector from '@/components/shared/warehouse-selector';
+import DatePresets from '@/components/shared/date-presets';
+import { useAutoBookingCheck } from '@/hooks/use-session-check';
+import { 
+  validateTaskForm, 
+  saveFormSettings, 
+  loadFormSettings,
+  formatTaskDataForAPI,
+  type TaskFormData 
+} from '@/lib/utils/task-form-utils';
 
 interface Warehouse {
   id: string;
@@ -54,6 +65,9 @@ interface Supply {
   createdAt: string;
   updatedAt: string;
   goods?: any[];
+  phone?: string;
+  preorderID?: number;
+  supplyID?: number;
 }
 
 interface CreateTaskModalProps {
@@ -83,11 +97,12 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<TaskFormData>({
     name: '',
     description: '',
     autoBook: false,
     autoBookSupplyId: '',
+    preorderID: '',
     filters: {
       coefficientMin: 0,
       coefficientMax: 20,
@@ -102,23 +117,36 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
       maxRetries: 3,
       backoffMs: 5000,
     },
-    priority: 1,
+    priority: 4, // Максимальный приоритет по умолчанию
   });
+  
+  const [manualSupplyInput, setManualSupplyInput] = useState('');
+  const [useManualSupply, setUseManualSupply] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  
+  // Проверка сессии для автобронирования
+  const { canAutoBook, isCheckingSession, sessionError, refreshSession } = useAutoBookingCheck();
 
   useEffect(() => {
     if (isOpen) {
       fetchWarehouses();
       fetchWarehouseReferences();
+      
+      // Загружаем сохраненные настройки
+      const savedSettings = loadFormSettings();
+      if (savedSettings) {
+        setFormData(prev => ({
+          ...prev,
+          ...(savedSettings.filters && { filters: { ...prev.filters, ...savedSettings.filters } }),
+          ...(savedSettings.retryPolicy && { retryPolicy: savedSettings.retryPolicy }),
+          ...(savedSettings.priority !== undefined && { priority: savedSettings.priority }),
+        }));
+      }
+      
+      // Проверяем сессию для автобронирования
+      refreshSession();
     }
-  }, [isOpen]);
-
-  // Проверяем аутентификацию при открытии модального окна
-  useEffect(() => {
-    if (isOpen) {
-      console.log('🔍 Проверяем аутентификацию при открытии модального окна...');
-      // Можно добавить проверку аутентификации здесь
-    }
-  }, [isOpen]);
+  }, [isOpen, refreshSession]);
 
   const fetchWarehouses = async () => {
     try {
@@ -150,9 +178,9 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
   const fetchSupplies = useCallback(async () => {
     try {
       setIsLoadingSupplies(true);
-      console.log('🔄 Загрузка поставок со статусом "черновик"...');
+      console.log('🔄 Загрузка поставок со статусом "Не запланировано"...');
       
-      const response = await fetch('/api/supplies?limit=100&status=draft', {
+      const response = await fetch('/api/supplies?limit=100&status=active', {
         credentials: 'include', // Включаем cookies для аутентификации
         headers: {
           'Content-Type': 'application/json',
@@ -166,7 +194,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
       
       if (data.success) {
         setSupplies(data.data?.supplies || []);
-        console.log('✅ Draft supplies loaded:', data.data?.supplies?.length || 0);
+        console.log('✅ Unplanned supplies loaded:', data.data?.supplies?.length || 0);
       } else {
         console.error('❌ Error fetching supplies:', data.error);
         setError('Ошибка загрузки поставок: ' + data.error);
@@ -191,20 +219,36 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
     e.preventDefault();
     setIsSaving(true);
     setError('');
+    setValidationErrors([]);
 
     try {
+      // Валидация формы
+      const validation = validateTaskForm(formData);
+      if (!validation.isValid) {
+        setValidationErrors(validation.errors);
+        setIsSaving(false);
+        return;
+      }
+
+      // Проверка WB сессии если включено автобронирование
+      if (formData.autoBook && !canAutoBook) {
+        setError('Нет активной сессии Wildberries. Авторизуйтесь через WB для автобронирования (перейдите в WB Auth)');
+        setIsSaving(false);
+        return;
+      }
+
+      // Сохраняем настройки формы
+      saveFormSettings(formData);
+
+      // Форматируем данные для API
+      const taskData = formatTaskDataForAPI(formData);
+
       const response = await fetch('/api/tasks', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...formData,
-          filters: {
-            ...formData.filters,
-            warehouseIds: selectedWarehouses,
-          },
-        }),
+        body: JSON.stringify(taskData),
       });
 
       const data = await response.json();
@@ -232,6 +276,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
       description: '',
       autoBook: false,
       autoBookSupplyId: '',
+      preorderID: '',
       filters: {
         coefficientMin: 0,
         coefficientMax: 20,
@@ -246,12 +291,15 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
         maxRetries: 3,
         backoffMs: 5000,
       },
-      priority: 1,
+      priority: 4, // Максимальный приоритет по умолчанию
     });
     setSelectedWarehouses([]);
     setSelectedSupply(null);
     setSupplies([]);
     setSupplySearchQuery('');
+    setManualSupplyInput('');
+    setUseManualSupply(false);
+    setValidationErrors([]);
     setError('');
     setSuccess('');
   };
@@ -278,23 +326,52 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
 
   const handleSupplySelect = (supply: Supply) => {
     setSelectedSupply(supply);
-    setFormData(prev => ({ ...prev, autoBookSupplyId: supply.id }));
+    // Сохраняем preorderID если есть, иначе используем supplyID или id
+    const supplyId = supply.preorderID?.toString() || supply.supplyID?.toString() || supply.id;
+    setFormData(prev => ({ 
+      ...prev, 
+      autoBookSupplyId: supplyId,
+      preorderID: supply.preorderID?.toString() || ''
+    }));
     setShowSupplyDropdown(false);
     setSupplySearchQuery('');
+    console.log('📦 Выбрана поставка:', {
+      id: supply.id,
+      preorderID: supply.preorderID,
+      supplyID: supply.supplyID,
+      selectedId: supplyId,
+      savedPreorderID: supply.preorderID?.toString() || ''
+    });
   };
 
   const handleAutoBookToggle = (checked: boolean) => {
+    // Проверяем WB сессию перед включением автобронирования
+    if (checked && !canAutoBook) {
+      setError('Нет активной сессии Wildberries. Авторизуйтесь через WB для автобронирования');
+      return;
+    }
+    
     setFormData(prev => ({ 
       ...prev, 
       autoBook: checked,
-      autoBookSupplyId: checked ? prev.autoBookSupplyId : ''
+      autoBookSupplyId: checked ? (useManualSupply ? manualSupplyInput : prev.autoBookSupplyId) : ''
     }));
     
     if (!checked) {
       setSelectedSupply(null);
-    } else if (supplies.length === 0) {
+      setManualSupplyInput('');
+    } else if (!useManualSupply && supplies.length === 0) {
       fetchSupplies();
     }
+  };
+  
+  const handleManualSupplyInputChange = (value: string) => {
+    setManualSupplyInput(value);
+    setFormData(prev => ({
+      ...prev,
+      autoBookSupplyId: value,
+      preorderID: value
+    }));
   };
 
   const filteredWarehouses = (warehouseRefs || []).filter(warehouse =>
@@ -395,92 +472,14 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
                     </div>
                     Склады
                   </h3>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Выберите склады * (только включенные в настройках)
-                    </Label>
-                    <div className="relative">
-                      <div
-                        className="w-full h-11 p-3 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 cursor-pointer hover:border-green-500 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors"
-                        onClick={() => setShowWarehouseDropdown(!showWarehouseDropdown)}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-700 dark:text-gray-300">
-                            {selectedWarehouses.length > 0 
-                              ? `Выбрано складов: ${selectedWarehouses.length}`
-                              : 'Выберите склады'
-                            }
-                          </span>
-                          <Search className="w-4 h-4 text-gray-400" />
-                        </div>
-                      </div>
-                      
-                      {showWarehouseDropdown && (
-                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                          <div className="p-2">
-                            <Input
-                              placeholder="Поиск складов..."
-                              value={searchQuery}
-                              onChange={(e) => setSearchQuery(e.target.value)}
-                              className="mb-2 h-9"
-                            />
-                          </div>
-                          <div className="max-h-48 overflow-y-auto">
-                            {filteredWarehouses.map((warehouse) => (
-                              <div
-                                key={warehouse.warehouseId}
-                                className="flex items-center p-2 hover:bg-green-50 dark:hover:bg-green-900/20 cursor-pointer transition-colors"
-                                onClick={() => handleWarehouseToggle(warehouse.warehouseId)}
-                              >
-                                <div className="flex items-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedWarehouses.includes(warehouse.warehouseId)}
-                                    onChange={() => {}}
-                                    className="mr-2"
-                                    title={`Выбрать склад ${warehouse.warehouseName}`}
-                                  />
-                                  <span className="text-sm text-gray-700 dark:text-gray-300">
-                                    {warehouse.warehouseName} (ID: {warehouse.warehouseId})
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Selected Warehouses Display */}
-                    {selectedWarehouses.length > 0 && (
-                      <div className="mt-3 space-y-2">
-                        <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Выбранные склады:
-                        </Label>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedWarehouses.map(warehouseId => {
-                            const warehouse = warehouseRefs.find(w => w.warehouseId === warehouseId);
-                            return warehouse ? (
-                              <div
-                                key={warehouseId}
-                                className="flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 rounded-full text-sm"
-                              >
-                                <span>{warehouse.warehouseName}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleWarehouseToggle(warehouseId)}
-                                  className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200"
-                                  title={`Удалить склад ${warehouse.warehouseName}`}
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </div>
-                            ) : null;
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <WarehouseSelector
+                    selectedWarehouses={formData.filters.warehouseIds}
+                    onWarehousesChange={(warehouses) => setFormData(prev => ({
+                      ...prev,
+                      filters: { ...prev.filters, warehouseIds: warehouses }
+                    }))}
+                    required={true}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -588,44 +587,14 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
                     </div>
                     Период поиска
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="dateFrom" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Дата начала поиска
-                      </Label>
-                      <Input
-                        id="dateFrom"
-                        type="datetime-local"
-                        value={formData.filters.dates.from}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          filters: {
-                            ...prev.filters,
-                            dates: { ...prev.filters.dates, from: e.target.value }
-                          }
-                        }))}
-                        className="h-11"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="dateTo" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Дата окончания поиска
-                      </Label>
-                      <Input
-                        id="dateTo"
-                        type="datetime-local"
-                        value={formData.filters.dates.to}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          filters: {
-                            ...prev.filters,
-                            dates: { ...prev.filters.dates, to: e.target.value }
-                          }
-                        }))}
-                        className="h-11"
-                      />
-                    </div>
-                  </div>
+                  <DatePresets
+                    dateRange={formData.filters.dates}
+                    onDateRangeChange={(dates) => setFormData(prev => ({
+                      ...prev,
+                      filters: { ...prev.filters, dates }
+                    }))}
+                    showTimeInput={true}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -641,24 +610,87 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
                     Автобронирование
                   </h3>
                   <div className="space-y-4">
+                    {/* Проверка WB сессии для автобронирования */}
+                    {!canAutoBook && (
+                      <Alert className="bg-orange-50 border-orange-200 text-orange-800 dark:bg-orange-900/20 dark:border-orange-800 dark:text-orange-300">
+                        <Info className="h-4 w-4" />
+                        <AlertDescription>
+                          Нет активной сессии Wildberries. <button 
+                            type="button"
+                            onClick={refreshSession} 
+                            className="underline font-semibold"
+                          >
+                            Авторизуйтесь через WB
+                          </button> для автобронирования (перейдите в WB Auth)
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    
                     <div className="flex items-center space-x-3">
                       <input
                         type="checkbox"
                         id="autoBook"
                         checked={formData.autoBook}
                         onChange={(e) => handleAutoBookToggle(e.target.checked)}
-                        className="w-4 h-4 rounded border-gray-300 text-yellow-600 focus:ring-yellow-500"
-                        title="Включить автобронирование"
+                        disabled={!canAutoBook}
+                        className="w-4 h-4 rounded border-gray-300 text-yellow-600 focus:ring-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={canAutoBook ? "Включить автобронирование" : "Требуется WB сессия для автобронирования"}
                       />
                       <Label htmlFor="autoBook" className="text-sm font-medium text-gray-700 dark:text-gray-300">
                         Включить автобронирование
+                        {!canAutoBook && <span className="text-xs text-orange-600 ml-2">(требуется WB сессия)</span>}
                       </Label>
                     </div>
                     {formData.autoBook && (
                       <div className="space-y-4">
-                        <div className="space-y-2">
+                        {/* Выбор способа ввода поставки */}
+                        <div className="flex items-center space-x-4">
+                          <button
+                            type="button"
+                            onClick={() => setUseManualSupply(false)}
+                            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                              !useManualSupply
+                                ? 'bg-yellow-500 text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                            }`}
+                          >
+                            Выбрать из списка
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setUseManualSupply(true);
+                              setSelectedSupply(null);
+                            }}
+                            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                              useManualSupply
+                                ? 'bg-yellow-500 text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                            }`}
+                          >
+                            Ввести вручную
+                          </button>
+                        </div>
+
+                        {useManualSupply ? (
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Номер поставки для автобронирования *
+                            </Label>
+                            <Input
+                              placeholder="Введите номер поставки"
+                              value={manualSupplyInput}
+                              onChange={(e) => handleManualSupplyInputChange(e.target.value)}
+                              className="h-11"
+                            />
+                            <p className="text-xs text-gray-500">
+                              Введите номер поставки, который будет использоваться для автоматического бронирования слотов
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
                           <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Выберите поставку для автобронирования *
+                            Выберите поставку из списка *
                           </Label>
                           <div className="relative">
                             <div
@@ -706,7 +738,8 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
                                             {supply.name}
                                           </div>
                                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                            ID: {supply.id} | Статус: {supply.status} | Склад: {supply.warehouseId}
+                                            ID: {supply.id} | Статус: {supply.status}
+                                            {supply.phone && ` | Телефон: ${supply.phone}`}
                                           </div>
                                           {supply.supplyDate && (
                                             <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -724,33 +757,39 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
                               </div>
                             )}
                           </div>
-                        </div>
                         
-                        {/* Selected Supply Display */}
-                        {selectedSupply && (
-                          <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <div className="font-medium text-sm text-gray-900 dark:text-white">
-                                  Выбранная поставка: {selectedSupply.name}
+                          {/* Selected Supply Display */}
+                          {selectedSupply && (
+                            <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="font-medium text-sm text-gray-900 dark:text-white">
+                                    Выбранная поставка: {selectedSupply.name}
+                                  </div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    ID: {selectedSupply.id} | Статус: {selectedSupply.status}
+                                    {selectedSupply.phone && ` | Телефон: ${selectedSupply.phone}`}
+                                  </div>
                                 </div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                  ID: {selectedSupply.id} | Статус: {selectedSupply.status} | Склад: {selectedSupply.warehouseId}
-                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedSupply(null);
+                                    setFormData(prev => ({ 
+                                      ...prev, 
+                                      autoBookSupplyId: '',
+                                      preorderID: ''
+                                    }));
+                                  }}
+                                  className="text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-200"
+                                  title="Удалить выбранную поставку"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedSupply(null);
-                                  setFormData(prev => ({ ...prev, autoBookSupplyId: '' }));
-                                }}
-                                className="text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-200"
-                                title="Удалить выбранную поставку"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
                             </div>
-                          </div>
+                          )}
+                        </div>
                         )}
                       </div>
                     )}
@@ -758,6 +797,23 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
                 </div>
               </CardContent>
             </Card>
+
+            {/* Validation Errors */}
+            {validationErrors.length > 0 && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <div className="space-y-1">
+                    <div className="font-semibold">Ошибки валидации:</div>
+                    <ul className="list-disc list-inside">
+                      {validationErrors.map((err, idx) => (
+                        <li key={idx}>{err}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
 
             {/* Success/Error Display */}
             {success && (
@@ -784,7 +840,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTa
           </Button>
           <Button 
             type="submit" 
-            disabled={isSaving || selectedWarehouses.length === 0}
+            disabled={isSaving || formData.filters.warehouseIds.length === 0 || (formData.autoBook && !formData.autoBookSupplyId)}
             onClick={handleSubmit}
             className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg"
           >

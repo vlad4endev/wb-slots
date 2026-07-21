@@ -29,7 +29,10 @@
 
 🔧 ДОПОЛНИТЕЛЬНО:
 - check-status.bat - проверка системы
+- backup-project.bat - полное резервное копирование
+- backup-data-only.bat - backup только данных
 - РЕШЕНИЕ-ПРОБЛЕМ-DOCKER.md - решение проблем
+- BACKUP_INSTRUCTIONS.md - инструкции по backup
 - README-ORCHESTRATOR.md - полная документация
 
 ================================

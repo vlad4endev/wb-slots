@@ -101,8 +101,8 @@ echo      ПОЛНАЯ УСТАНОВКА ПРОЕКТА
 echo ========================================
 echo.
 
-echo [INFO] Остановка существующих контейнеров...
-docker-compose down -v >nul 2>&1
+echo [INFO] Остановка существующих контейнеров (СОХРАНЯЕМ ДАННЫЕ)...
+docker-compose down >nul 2>&1
 
 echo [INFO] Установка зависимостей frontend...
 call npm install

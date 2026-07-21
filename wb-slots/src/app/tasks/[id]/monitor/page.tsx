@@ -216,7 +216,7 @@ export default function TaskMonitorPage() {
       case 'BOOKING':
         return <Badge variant="default" className="bg-purple-100 text-purple-800">Бронирование</Badge>;
       case 'COMPLETED':
-        return <Badge variant="default" className="bg-green-100 text-green-800">Завершено</Badge>;
+        return <Badge variant="default" className="bg-green-100 text-green-800">Успешно завершено</Badge>;
       case 'STOPPED':
         return <Badge variant="secondary">Остановлено</Badge>;
       default:
@@ -542,7 +542,7 @@ export default function TaskMonitorPage() {
                 </div>
               </div>
               <div className="flex items-center space-x-2">
-                {data?.taskStatus === 'COMPLETED' ? (
+                {data?.taskStatus === 'COMPLETED' || data?.taskStatus === 'SUCCESS' ? (
                   <div className="flex items-center space-x-2">
                     <Badge variant="outline" className="text-emerald-600 border-emerald-200">
                       Задача завершена

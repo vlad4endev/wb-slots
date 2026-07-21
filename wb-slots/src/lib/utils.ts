@@ -71,3 +71,29 @@ export function throttle<T extends (...args: any[]) => any>(
     }
   };
 }
+
+export function safeJsonStringify(obj: any, space?: number): string {
+  try {
+    // Используем replacer для обработки циклических ссылок
+    const seen = new WeakSet();
+    return JSON.stringify(obj, (key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (seen.has(value)) {
+          return '[Circular Reference]';
+        }
+        seen.add(value);
+      }
+      return value;
+    }, space);
+  } catch (error) {
+    return `[Error stringifying object: ${error instanceof Error ? error.message : 'Unknown error'}]`;
+  }
+}
+
+export function safeJsonParse<T = any>(str: string, defaultValue?: T): T | null {
+  try {
+    return JSON.parse(str);
+  } catch (error) {
+    return defaultValue || null;
+  }
+}

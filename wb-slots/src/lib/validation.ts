@@ -81,6 +81,10 @@ export const warehousePrefSchema = z.object({
   }).default(true),
 });
 
+// Type definitions derived from Zod schemas
+export type TaskFilters = z.infer<typeof taskFiltersSchema>;
+export type RetryPolicy = z.infer<typeof retryPolicySchema>;
+
 // Task validation schemas
 export const taskFiltersSchema = z.object({
   coefficientMin: z.union([z.string(), z.number()]).transform((val) => {
@@ -129,6 +133,9 @@ export const taskFiltersSchema = z.object({
   ).min(1, 'At least one warehouse must be selected'),
 });
 
+// Type definitions derived from Zod schemas
+export type TaskFilters = z.infer<typeof taskFiltersSchema>;
+
 export const retryPolicySchema = z.object({
   maxRetries: z.union([z.string(), z.number()]).transform((val) => {
     const num = typeof val === 'string' ? parseInt(val, 10) : val;
@@ -145,6 +152,9 @@ export const retryPolicySchema = z.object({
     return num;
   }).default(5000),
 });
+
+// Type definitions derived from Zod schemas
+export type RetryPolicy = z.infer<typeof retryPolicySchema>;
 
 export const createTaskSchema = z.object({
   name: z.string().min(1, 'Task name is required'),
@@ -167,6 +177,7 @@ export const createTaskSchema = z.object({
     return false; // default
   }).default(false),
   autoBookSupplyId: z.string().optional(),
+  preorderID: z.string().optional(),
   filters: taskFiltersSchema,
   retryPolicy: retryPolicySchema,
   priority: z.union([z.string(), z.number()]).transform((val) => {
@@ -247,6 +258,26 @@ export const searchSchema = z.object({
   query: z.string().optional(),
   filters: z.record(z.any()).optional(),
   ...paginationSchema.shape,
+});
+
+// Analytics query validation
+export const analyticsQuerySchema = z.object({
+  timeRange: z.enum(['day', 'week', 'month', 'year']).default('week'),
+  userId: z.string().optional(),
+  page: z.union([z.string(), z.number()]).transform((val) => {
+    const num = typeof val === 'string' ? parseInt(val, 10) : val;
+    if (isNaN(num) || num < 1) {
+      throw new Error('Page must be a positive number');
+    }
+    return num;
+  }).default(1),
+  limit: z.union([z.string(), z.number()]).transform((val) => {
+    const num = typeof val === 'string' ? parseInt(val, 10) : val;
+    if (isNaN(num) || num < 1 || num > 500) {
+      throw new Error('Limit must be a number between 1 and 500');
+    }
+    return num;
+  }).default(100),
 });
 
 // WB API specific schemas

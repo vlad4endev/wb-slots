@@ -81,6 +81,7 @@ model Task {
   filters          Json
   retryPolicy      Json       @map("retry_policy")
   priority         Int        @default(0)
+  successCount     Int        @default(0) @map("success_count")
   createdAt        DateTime   @default(now()) @map("created_at")
   updatedAt        DateTime   @updatedAt @map("updated_at")
   runs             Run[]
@@ -185,18 +186,22 @@ model AuditLog {
 }
 
 model WBSession {
-  id         String    @id @default(cuid())
-  userId     String    @map("user_id")
-  sessionId  String    @unique @map("session_id")
-  cookies    Json
-  userAgent  String?   @map("user_agent")
-  ipAddress  String?   @map("ip_address")
-  isActive   Boolean   @default(true) @map("is_active")
-  expiresAt  DateTime  @map("expires_at")
-  lastUsedAt DateTime? @map("last_used_at")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                      String    @id @default(cuid())
+  userId                  String    @map("user_id")
+  sessionId               String    @unique @map("session_id")
+  cookiesEncrypted        String    @map("cookies_encrypted")
+  localStorageEncrypted   String?   @map("local_storage_encrypted")
+  sessionStorageEncrypted String?   @map("session_storage_encrypted")
+  userAgent               String?   @map("user_agent")
+  ipAddress               String?   @map("ip_address")
+  isActive                Boolean   @default(true) @map("is_active")
+  expiresAt               DateTime  @map("expires_at")
+  lastUsedAt              DateTime? @map("last_used_at")
+  fingerprint             String?   @map("fingerprint")
+  metadata                Json      @default("{}")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("wb_sessions")
 }

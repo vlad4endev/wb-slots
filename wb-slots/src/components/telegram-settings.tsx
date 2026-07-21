@@ -393,7 +393,10 @@ export default function TelegramSettings({ showAdminSettings = false, compact = 
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ botToken }),
+        body: JSON.stringify({ 
+          action: 'update_bot_token',
+          data: { botToken }
+        }),
       });
 
       const data = await response.json();
@@ -768,16 +771,39 @@ export default function TelegramSettings({ showAdminSettings = false, compact = 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="chatId">Chat ID *</Label>
-                <Input
-                  id="chatId"
-                  value={chatId}
+                <div className="flex gap-2">
+                  <Input
+                    id="chatId"
+                    value={chatId}
                     onChange={(e) => handleChatIdChange(e.target.value)}
-                  placeholder="Ваш Chat ID в Telegram"
-                  required
-                />
-                <p className="text-xs text-gray-500">
-                  Получите Chat ID у @userinfobot в Telegram
-                </p>
+                    placeholder="Ваш Chat ID в Telegram"
+                    required
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => window.open('https://t.me/chatIDrobot', '_blank')}
+                    className="shrink-0"
+                    title="Получить Chat ID"
+                  >
+                    <MessageCircle className="w-4 h-4 mr-2" />
+                    Получить ID
+                  </Button>
+                </div>
+                <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <Info className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+                  <div className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
+                    <p className="font-medium">Как получить Chat ID:</p>
+                    <ol className="list-decimal list-inside space-y-0.5 ml-2">
+                      <li>Нажмите кнопку "Получить ID"</li>
+                      <li>Откроется бот @chatIDrobot в Telegram</li>
+                      <li>Нажмите START или отправьте любое сообщение</li>
+                      <li>Бот отправит вам ваш Chat ID</li>
+                      <li>Скопируйте число и вставьте в поле выше</li>
+                    </ol>
+                  </div>
+                </div>
               </div>
               
               <div className="space-y-2">

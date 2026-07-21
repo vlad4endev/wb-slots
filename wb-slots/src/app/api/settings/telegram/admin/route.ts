@@ -44,23 +44,45 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🔍 === TELEGRAM ADMIN POST REQUEST ===');
+    
     const user = await getCurrentUser(request);
+    console.log('User:', user ? { id: user.id, email: user.email, role: user.role } : 'No user');
+    
     if (!user) {
+      console.log('❌ No user found');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Проверяем роль пользователя - доступ для DEVELOPER и ADMIN
     if (user.role !== 'DEVELOPER' && user.role !== 'ADMIN') {
+      console.log('❌ Insufficient role:', user.role);
       return NextResponse.json({ error: 'Access denied. Developer role required.' }, { status: 403 });
     }
 
-    const { action, data } = await request.json();
+    console.log('✅ User authorized with role:', user.role);
+    
+    let body;
+    try {
+      body = await request.json();
+      console.log('Request body:', JSON.stringify(body, null, 2));
+    } catch (error) {
+      console.log('❌ Error parsing request body:', error);
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+    }
+
+    const { action, data } = body;
+    console.log('Action:', action);
+    console.log('Data:', data);
 
     switch (action) {
       case 'update_bot_token':
+        console.log('🔄 Processing update_bot_token action');
         if (!data.botToken) {
+          console.log('❌ No bot token provided');
           return NextResponse.json({ error: 'Bot token is required' }, { status: 400 });
         }
+        console.log('✅ Bot token provided, length:', data.botToken.length);
         
         // Skip validation if explicitly requested (for offline environments)
         if (data.skipValidation) {

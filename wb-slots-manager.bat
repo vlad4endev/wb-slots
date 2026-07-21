@@ -20,13 +20,15 @@ echo 8. 🧹 Очистка и переустановка
 echo 9. 🔧 Исправить проблемы Docker
 echo 10. 💻 Локальная разработка (без Docker)
 echo 11. ⚡ Быстрое исправление Alpine
-echo 12. 📖 Открыть документацию
+echo 12. 💾 Полное резервное копирование
+echo 13. 💾 Backup только данных
+echo 14. 📖 Открыть документацию
 echo 0. ❌ Выход
 echo.
 echo ========================================
 echo.
 
-set /p choice="Выберите действие (0-12): "
+set /p choice="Выберите действие (0-14): "
 
 if "%choice%"=="1" goto setup
 if "%choice%"=="2" goto full_menu
@@ -39,7 +41,9 @@ if "%choice%"=="8" goto clean_install
 if "%choice%"=="9" goto fix_docker
 if "%choice%"=="10" goto local_dev
 if "%choice%"=="11" goto quick_fix
-if "%choice%"=="12" goto open_docs
+if "%choice%"=="12" goto full_backup
+if "%choice%"=="13" goto data_backup
+if "%choice%"=="14" goto open_docs
 if "%choice%"=="0" goto exit
 echo [ERROR] Неверный выбор! Попробуйте снова.
 timeout /t 2 /nobreak >nul
@@ -151,6 +155,20 @@ goto main_menu
 echo.
 echo [INFO] Быстрое исправление проблем с Alpine Linux...
 call quick-fix-alpine.bat
+pause
+goto main_menu
+
+:full_backup
+echo.
+echo [INFO] Запуск полного резервного копирования...
+call backup-project.bat
+pause
+goto main_menu
+
+:data_backup
+echo.
+echo [INFO] Запуск backup только данных...
+call backup-data-only.bat
 pause
 goto main_menu
 

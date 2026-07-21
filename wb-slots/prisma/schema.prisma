@@ -30,6 +30,11 @@ model User {
   tokens               UserToken[]
   warehousePrefs       WarehousePref[]
   wbSessions           WBSession[]
+  bookingResults       BookingResult[]
+  authSessions         AuthSession[]
+  permissions          UserPermission[]
+  securityEvents       SecurityEvent[]
+  apiKeys              ApiKey[]
 
   @@map("users")
 }
@@ -45,6 +50,7 @@ model UserToken {
   updatedAt      DateTime      @updatedAt @map("updated_at")
   user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId, category, isActive])
   @@map("user_tokens")
 }
 
@@ -76,14 +82,20 @@ model Task {
   scheduleCron     String?    @map("schedule_cron")
   autoBook         Boolean    @default(false) @map("auto_book")
   autoBookSupplyId String?    @map("auto_book_supply_id")
+  preorderID       String?    @map("preorder_id")
+  chosenSupplyId   String?    @map("chosen_supply_id")
   filters          Json
   retryPolicy      Json       @map("retry_policy")
   priority         Int        @default(0)
+  successCount     Int        @default(0) @map("success_count")
   createdAt        DateTime   @default(now()) @map("created_at")
   updatedAt        DateTime   @updatedAt @map("updated_at")
   runs             Run[]
   user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId, status])
+  @@index([enabled, status])
+  @@index([createdAt])
   @@map("tasks")
 }
 
@@ -102,6 +114,9 @@ model Run {
   task              Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([taskId, status])
+  @@index([userId, status])
+  @@index([startedAt])
   @@map("runs")
 }
 
@@ -124,6 +139,11 @@ model FoundSlot {
   run           Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId, runId])
+  @@index([warehouseId, date])
+  @@index([isBooked, warehouseId, date, timeSlot])
+  // Защита от дублирующих бронирований: один пользователь не может забронировать один и тот же слот дважды
+  @@unique([userId, warehouseId, date, timeSlot, isBooked], name: "unique_active_booking")
   @@map("found_slots")
 }
 
@@ -183,20 +203,51 @@ model AuditLog {
 }
 
 model WBSession {
-  id         String    @id @default(cuid())
-  userId     String    @map("user_id")
-  sessionId  String    @unique @map("session_id")
-  cookies    Json
-  userAgent  String?   @map("user_agent")
-  ipAddress  String?   @map("ip_address")
-  isActive   Boolean   @default(true) @map("is_active")
-  expiresAt  DateTime  @map("expires_at")
-  lastUsedAt DateTime? @map("last_used_at")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                    String    @id @default(cuid())
+  userId                String    @unique @map("user_id")
+  sessionData           String    @db.Text @map("session_data") // Зашифрованные данные
+  isActive              Boolean   @default(true) @map("is_active")
+  
+  // Метаданные
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  lastValidated         DateTime  @default(now()) @map("last_validated")
+  expiresAt             DateTime? @map("expires_at") // Срок действия сессии (опционально для обратной совместимости)
+  deactivatedAt         DateTime? @map("deactivated_at")
+  deactivationReason    String?   @map("deactivation_reason")
+  
+  // Аудит
+  ipAddress             String?   @map("ip_address")
+  lastUsedAt            DateTime? @map("last_used_at")
+  useCount              Int       @default(0) @map("use_count")
+  
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId, isActive])
+  @@index([lastValidated])
+  @@index([expiresAt])
   @@map("wb_sessions")
+}
+
+model BookingResult {
+  id            String      @id @default(cuid())
+  userId        String      @map("user_id")
+  supplyId      String      @map("supply_id")
+  warehouseId   Int         @map("warehouse_id")
+  warehouseName String      @map("warehouse_name")
+  bookingDate   String      @map("booking_date")
+  timeSlot      String      @map("time_slot")
+  boxTypes      String[]    @map("box_types")
+  coefficient   Float?
+  bookingId     String?     @map("booking_id")
+  status        BookingStatus
+  errorMessage  String?     @map("error_message")
+  details       Json?
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("booking_results")
 }
 
 model UserSettings {
@@ -210,6 +261,48 @@ model UserSettings {
 
   @@unique([userId, category])
   @@map("user_settings")
+}
+
+// Таблица для distributed locking при автобронировании
+// Предотвращает одновременное выполнение нескольких процессов бронирования для одного пользователя
+model BookingLock {
+  id            String    @id @default(cuid())
+  userId        String    @unique @map("user_id") // Только одна активная блокировка на пользователя
+  lockKey       String    @map("lock_key") // Ключ блокировки (например, "booking:userId")
+  lockedBy      String    @map("locked_by") // Идентификатор процесса (uuid)
+  taskId        String?   @map("task_id") // ID задачи, которая держит блокировку
+  supplyId      String?   @map("supply_id")
+  warehouseId   Int?      @map("warehouse_id")
+  
+  // Метаданные блокировки
+  acquiredAt    DateTime  @default(now()) @map("acquired_at")
+  expiresAt     DateTime  @map("expires_at") // Автоматическое освобождение через TTL
+  releasedAt    DateTime? @map("released_at")
+  
+  // Для отладки
+  metadata      Json?
+  
+  @@index([userId, expiresAt])
+  @@index([lockKey, expiresAt])
+  @@map("booking_locks")
+}
+
+model ApiKey {
+  id             String    @id @default(cuid())
+  userId         String    @map("user_id")
+  keyType        String    @map("key_type")
+  keyName        String    @map("key_name")
+  encryptedData  Json      @map("encrypted_data")
+  description    String?
+  isActive       Boolean   @default(true) @map("is_active")
+  expiresAt      DateTime? @map("expires_at")
+  metadata       Json      @default("{}")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, keyType, keyName])
+  @@map("api_keys")
 }
 
 model Warehouse {
@@ -284,6 +377,13 @@ enum TaskStatus {
   COMPLETED
 }
 
+enum BookingStatus {
+  SUCCESS
+  FAILED
+  PENDING
+  CANCELLED
+}
+
 enum LogLevel {
   DEBUG
   INFO
@@ -305,4 +405,61 @@ enum NotificationTemplateType {
   TASK_COMPLETED
   TASK_FAILED
   TASK_STOPPED
+}
+
+// ===== ADVANCED AUTH MODELS =====
+
+model AuthSession {
+  id                String    @id @default(cuid())
+  userId            String    @map("user_id")
+  sessionId         String    @unique @map("session_id")
+  isActive          Boolean   @default(true) @map("is_active")
+  expiresAt         DateTime  @map("expires_at")
+  lastUsedAt        DateTime  @map("last_used_at")
+  ipAddress         String?   @map("ip_address")
+  userAgent         String?   @map("user_agent")
+  deviceFingerprint String?   @map("device_fingerprint")
+  location          String?   // JSON string with location data
+  metadata          String?   // JSON string with additional metadata
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("auth_sessions")
+}
+
+model UserPermission {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  permission String
+  createdAt  DateTime @default(now()) @map("created_at")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permission])
+  @@map("user_permissions")
+}
+
+model SecurityEvent {
+  id         String           @id @default(cuid())
+  type       SecurityEventType
+  userId     String           @map("user_id")
+  sessionId  String?          @map("session_id")
+  ipAddress  String?          @map("ip_address")
+  userAgent  String?          @map("user_agent")
+  details    String           // JSON string with event details
+  timestamp  DateTime         @default(now())
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("security_events")
+}
+
+enum SecurityEventType {
+  LOGIN
+  LOGOUT
+  SESSION_CREATED
+  SESSION_EXPIRED
+  SUSPICIOUS_ACTIVITY
+  AUTH_FAILED
+  CAPTCHA_DETECTED
+  LOGIN_FAILED
 }

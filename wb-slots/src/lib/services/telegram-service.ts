@@ -358,6 +358,35 @@ export class TelegramService {
     
     return false;
   }
+
+  /**
+   * Получить информацию о пользователе (для обратной совместимости)
+   */
+  getUser(userId: string): any {
+    // Возвращаем null, так как данные теперь хранятся в БД
+    // Этот метод оставлен для обратной совместимости
+    return null;
+  }
+
+  /**
+   * Получить статистику (для обратной совместимости)
+   */
+  getStats(): any {
+    // Возвращаем базовую статистику
+    return {
+      totalUsers: 0,
+      activeUsers: 0,
+      messagesSent: 0,
+      lastActivity: null
+    };
+  }
+
+  /**
+   * Проверить, инициализирован ли сервис
+   */
+  isInitialized(): boolean {
+    return this.botToken !== null;
+  }
 }
 
 // Singleton instance - будет создан лениво

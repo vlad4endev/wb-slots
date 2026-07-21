@@ -1,0 +1,225 @@
+# ========================================
+# WB Slots - Test Environment
+# Безопасное тестовое окружение для разработки
+# ========================================
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database для тестов
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: wb-slots-postgres-test
+    environment:
+      POSTGRES_DB: wb_slots_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: test_password_123
+    ports:
+      - "5433:5432"  # Другой порт для тестов
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ./docker/init-db-test.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wb-slots-test-network
+
+  # Redis для тестов
+  redis-test:
+    image: redis:7-alpine
+    container_name: wb-slots-redis-test
+    ports:
+      - "6380:6379"  # Другой порт для тестов
+    volumes:
+      - redis_test_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wb-slots-test-network
+
+  # Основное приложение для тестов
+  app-test:
+    build: 
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: wb-slots-app-test
+    ports:
+      - "3001:3000"  # Другой порт для тестов
+    environment:
+      # Database
+      - DATABASE_URL=postgresql://postgres:test_password_123@postgres-test:5432/wb_slots_test?schema=public
+      - REDIS_URL=redis://redis-test:6379
+      
+      # Security (тестовые ключи)
+      - JWT_SECRET=test-jwt-secret-key-for-development-only
+      - ENCRYPTION_KEY=dGVzdC1lbmNyeXB0aW9uLWtleS0zMi1ieXRlcy1sb25n
+      
+      # Application
+      - APP_BASE_URL=http://localhost:3001
+      - NODE_ENV=test
+      - PORT=3000
+      
+      # WB API (тестовые URL)
+      - WB_API_BASE_URL=https://suppliers-api.wildberries.ru
+      - WB_STATISTICS_API_URL=https://statistics-api.wildberries.ru
+      - WB_MARKETPLACE_API_URL=https://marketplace-api.wildberries.ru
+      
+      # Telegram (тестовые настройки)
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_WEBHOOK_URL=${TELEGRAM_WEBHOOK_URL:-}
+      - NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=SearchLotWB_test_bot
+      
+      # Email (тестовые настройки)
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=587
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      
+      # Logging
+      - LOG_LEVEL=debug
+      - LOG_FILE=logs/test-app.log
+      
+      # Rate Limiting (более мягкие лимиты для тестов)
+      - RATE_LIMIT_WINDOW_MS=60000
+      - RATE_LIMIT_MAX_REQUESTS=1000
+      
+      # Session
+      - SESSION_SECRET=test-session-secret-key
+      - SESSION_MAX_AGE=3600000
+      
+      # CORS
+      - CORS_ORIGIN=http://localhost:3001
+      
+      # Security
+      - BCRYPT_ROUNDS=4  # Меньше раундов для тестов
+      - PASSWORD_MIN_LENGTH=6
+      
+      # Worker
+      - WORKER_CONCURRENCY=2
+      - WORKER_DELAY_MS=500
+      
+      # Monitoring
+      - HEALTH_CHECK_INTERVAL=10000
+      - METRICS_ENABLED=true
+      
+      # Development
+      - DEBUG_MODE=true
+      - VERBOSE_LOGGING=true
+      - HOT_RELOAD=true
+      
+      # Puppeteer (для тестов)
+      - PUPPETEER_SKIP_DOWNLOAD=true
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src:ro
+      - ./public:/app/public:ro
+      - ./prisma:/app/prisma:ro
+      - ./screenshots:/app/screenshots
+      - ./logs:/app/logs
+    networks:
+      - wb-slots-test-network
+    command: >
+      sh -c "
+        echo '🚀 Starting test environment...' &&
+        npx prisma generate &&
+        npx prisma db push --force-reset &&
+        npx prisma db seed &&
+        echo '✅ Database setup complete' &&
+        npm run dev
+      "
+
+  # Worker для тестов
+  worker-test:
+    build: 
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: wb-slots-worker-test
+    environment:
+      # Database
+      - DATABASE_URL=postgresql://postgres:test_password_123@postgres-test:5432/wb_slots_test?schema=public
+      - REDIS_URL=redis://redis-test:6379
+      
+      # Security (тестовые ключи)
+      - JWT_SECRET=test-jwt-secret-key-for-development-only
+      - ENCRYPTION_KEY=dGVzdC1lbmNyeXB0aW9uLWtleS0zMi1ieXRlcy1sb25n
+      
+      # Application
+      - NODE_ENV=test
+      
+      # WB API
+      - WB_API_BASE_URL=https://suppliers-api.wildberries.ru
+      - WB_STATISTICS_API_URL=https://statistics-api.wildberries.ru
+      - WB_MARKETPLACE_API_URL=https://marketplace-api.wildberries.ru
+      
+      # Telegram
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_WEBHOOK_URL=${TELEGRAM_WEBHOOK_URL:-}
+      
+      # Logging
+      - LOG_LEVEL=debug
+      - LOG_FILE=logs/test-worker.log
+      
+      # Worker
+      - WORKER_CONCURRENCY=2
+      - WORKER_DELAY_MS=500
+      
+      # Development
+      - DEBUG_MODE=true
+      - VERBOSE_LOGGING=true
+      
+      # Puppeteer
+      - PUPPETEER_SKIP_DOWNLOAD=true
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src:ro
+      - ./screenshots:/app/screenshots
+      - ./logs:/app/logs
+    networks:
+      - wb-slots-test-network
+    command: >
+      sh -c "
+        echo '🔄 Starting test worker...' &&
+        sleep 10 &&
+        npx tsx src/workers/index.ts
+      "
+
+  # Nginx для тестов (опционально)
+  nginx-test:
+    image: nginx:alpine
+    container_name: wb-slots-nginx-test
+    ports:
+      - "8080:80"  # Другой порт для тестов
+    volumes:
+      - ./nginx/nginx-test.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app-test
+    networks:
+      - wb-slots-test-network
+
+volumes:
+  postgres_test_data:
+    driver: local
+  redis_test_data:
+    driver: local
+
+networks:
+  wb-slots-test-network:
+    driver: bridge
+    name: wb-slots-test-network

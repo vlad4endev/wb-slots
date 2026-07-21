@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import { ClientLayout } from '@/components/providers/client-layout';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -24,9 +25,9 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body className={inter.className}>
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <ClientLayout className="min-h-screen bg-gray-50 dark:bg-gray-900">
           {children}
-        </div>
+        </ClientLayout>
       </body>
     </html>
   );

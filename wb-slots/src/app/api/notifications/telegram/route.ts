@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { getTelegramService } from '@/lib/notifications/telegram-service';
+import { getTelegramService } from '@/lib/services/telegram-service';
 import { NotificationType } from '@/lib/notifications/telegram-config';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';

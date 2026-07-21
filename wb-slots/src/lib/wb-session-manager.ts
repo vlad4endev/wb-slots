@@ -34,7 +34,7 @@ export class WBSessionManager {
       data: {
         userId,
         sessionId: sessionData.sessionId,
-        cookies: { encrypted: encryptedCookies } as any, // Сохраняем как JSON объект
+        cookiesEncrypted: encryptedCookies,
         userAgent: sessionData.userAgent,
         ipAddress: sessionData.ipAddress,
         expiresAt: sessionData.expiresAt,
@@ -74,8 +74,11 @@ export class WBSessionManager {
     }
 
     // Расшифровываем cookies
-    const cookiesData = session.cookies as any;
-    const decryptedCookies = JSON.parse(decrypt(cookiesData.encrypted));
+    if (!session.cookiesEncrypted) {
+      return null;
+    }
+    
+    const decryptedCookies = JSON.parse(decrypt(session.cookiesEncrypted));
 
     return {
       sessionId: session.sessionId,
@@ -103,6 +106,15 @@ export class WBSessionManager {
     await prisma.wBSession.update({
       where: { sessionId },
       data: { isActive: false },
+    });
+  }
+
+  /**
+   * Полное удаление сессии из базы данных
+   */
+  static async deleteSession(sessionId: string): Promise<void> {
+    await prisma.wBSession.delete({
+      where: { sessionId },
     });
   }
 
@@ -178,7 +190,7 @@ export class WBSessionManager {
     await prisma.wBSession.update({
       where: { sessionId },
       data: { 
-        cookies: { encrypted: additionalData } as any,
+        cookiesEncrypted: additionalData,
         lastUsedAt: new Date()
       },
     });
@@ -196,8 +208,11 @@ export class WBSessionManager {
       throw new Error('Сессия не найдена');
     }
 
-    const cookiesData = session.cookies as any;
-    const decryptedCookies = JSON.parse(decrypt(cookiesData.encrypted));
+    if (!session.cookiesEncrypted) {
+      throw new Error('Cookies не найдены в сессии');
+    }
+
+    const decryptedCookies = JSON.parse(decrypt(session.cookiesEncrypted));
     
     // Преобразуем cookies в формат для браузера
     return Object.entries(decryptedCookies)

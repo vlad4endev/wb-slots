@@ -19,7 +19,8 @@ import {
   FiShield as Shield,
   FiZap as Zap,
   FiStar as Star,
-  FiUserPlus as UserPlus
+  FiUserPlus as UserPlus,
+  FiMessageCircle as MessageCircle
 } from 'react-icons/fi';
 
 export default function LoginPage() {
@@ -248,6 +249,43 @@ export default function LoginPage() {
                     )}
                   </Button>
                 </form>
+
+                {/* Telegram Auth Button */}
+                <div className="space-y-3">
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-200 dark:border-gray-600" />
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                      <span className="px-4 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+                        Или
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Link href="/auth/telegram-widget">
+                      <Button 
+                        type="button"
+                        variant="outline" 
+                        className="w-full h-12 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200"
+                      >
+                        <MessageCircle className="mr-2 h-5 w-5" />
+                        Войти через Telegram
+                      </Button>
+                    </Link>
+                    
+                    <Link href="/auth/telegram">
+                      <Button 
+                        type="button"
+                        variant="ghost" 
+                        className="w-full h-10 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                      >
+                        Telegram Web App
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
 
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">

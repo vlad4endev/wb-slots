@@ -127,12 +127,21 @@ export class AutoBookingWorker {
 
   private async updateTaskStatus(taskId: string, status: 'RUNNING' | 'SUCCESS' | 'FAILED') {
     try {
+      const updateData: any = {
+        status: status === 'SUCCESS' ? 'COMPLETED' : status,
+        enabled: status === 'SUCCESS' ? false : (status === 'RUNNING' ? true : false),
+      };
+
+      // Увеличиваем счетчик успешных поисков при успешном завершении
+      if (status === 'SUCCESS') {
+        updateData.successCount = {
+          increment: 1
+        };
+      }
+
       await prisma.task.update({
         where: { id: taskId },
-        data: { 
-          // В реальной схеме может не быть поля status, используем enabled
-          enabled: status === 'SUCCESS' ? true : false,
-        },
+        data: updateData,
       });
     } catch (error) {
       console.error('Error updating task status:', error);

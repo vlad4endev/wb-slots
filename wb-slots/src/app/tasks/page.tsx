@@ -46,10 +46,12 @@ interface Task {
   name: string;
   description?: string;
   enabled: boolean;
+  status: string;
   scheduleCron?: string;
   autoBook: boolean;
   filters: any;
   priority: number;
+  successCount: number;
   createdAt: string;
   updatedAt: string;
   runs: Array<{
@@ -72,6 +74,7 @@ interface TaskStats {
   stopped: number;
   totalRuns: number;
   foundSlots: number;
+  totalSuccessCount: number;
 }
 
 type FilterStatus = 'all' | 'active' | 'inactive' | 'successful' | 'failed' | 'stopped' | 'running';
@@ -86,7 +89,8 @@ export default function TasksPage() {
     failed: 0,
     stopped: 0,
     totalRuns: 0,
-    foundSlots: 0
+    foundSlots: 0,
+    totalSuccessCount: 0
   });
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -110,24 +114,27 @@ export default function TasksPage() {
     // Фильтр по статусу
     switch (statusFilter) {
       case 'active':
-        filtered = filtered.filter(task => task.enabled);
+        filtered = filtered.filter(task => task.enabled && task.status !== 'COMPLETED');
         break;
       case 'inactive':
-        filtered = filtered.filter(task => !task.enabled);
+        filtered = filtered.filter(task => !task.enabled || task.status === 'COMPLETED');
         break;
       case 'successful':
         filtered = filtered.filter(task => 
-          task.runs.length > 0 && task.runs[0].status === 'completed'
+          task.status === 'COMPLETED' || 
+          (task.runs.length > 0 && (task.runs[0].status === 'completed' || task.runs[0].status === 'SUCCESS'))
         );
         break;
       case 'failed':
         filtered = filtered.filter(task => 
-          task.runs.length > 0 && task.runs[0].status === 'failed'
+          task.status === 'FAILED' ||
+          (task.runs.length > 0 && (task.runs[0].status === 'failed' || task.runs[0].status === 'FAILED'))
         );
         break;
       case 'running':
         filtered = filtered.filter(task => 
-          task.runs.length > 0 && task.runs[0].status === 'running'
+          task.status === 'RUNNING' ||
+          (task.runs.length > 0 && (task.runs[0].status === 'running' || task.runs[0].status === 'RUNNING'))
         );
         break;
     }
@@ -171,7 +178,8 @@ export default function TasksPage() {
       failed: 0,
       stopped: 0,
       totalRuns: 0,
-      foundSlots: 0
+      foundSlots: 0,
+      totalSuccessCount: 0
     };
 
     tasks.forEach(task => {
@@ -182,13 +190,18 @@ export default function TasksPage() {
       }
 
       stats.totalRuns += task._count.runs;
+      stats.totalSuccessCount += task.successCount || 0;
 
-      // Анализируем последний запуск для определения статуса
-      if (task.runs.length > 0) {
+      // Анализируем статус задачи
+      if (task.status === 'COMPLETED') {
+        stats.successful++;
+      } else if (task.status === 'FAILED') {
+        stats.failed++;
+      } else if (task.runs.length > 0) {
         const lastRun = task.runs[0];
-        if (lastRun.status === 'completed') {
+        if (lastRun.status === 'completed' || lastRun.status === 'SUCCESS') {
           stats.successful++;
-        } else if (lastRun.status === 'failed') {
+        } else if (lastRun.status === 'failed' || lastRun.status === 'FAILED') {
           stats.failed++;
         }
       }
@@ -249,22 +262,30 @@ export default function TasksPage() {
   };
 
   const getLastRunStatus = (task: Task) => {
+    // Если задача завершена, показываем "Завершена"
+    if (task.status === 'COMPLETED') {
+      return { icon: <CheckCircle className="w-4 h-4 text-green-500" />, text: 'Завершена', color: 'text-green-600' };
+    }
+    
     if (task.runs.length === 0) return null;
     const lastRun = task.runs[0];
     
     switch (lastRun.status) {
       case 'completed':
+      case 'SUCCESS':
         return { icon: <CheckCircle className="w-4 h-4 text-green-500" />, text: 'Успешно', color: 'text-green-600' };
       case 'failed':
+      case 'FAILED':
         return { icon: <XCircle className="w-4 h-4 text-red-500" />, text: 'Ошибка', color: 'text-red-600' };
       case 'running':
+      case 'RUNNING':
         return { icon: <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />, text: 'Выполняется', color: 'text-blue-600' };
       default:
         return { icon: <Clock className="w-4 h-4 text-gray-500" />, text: 'Ожидание', color: 'text-gray-600' };
     }
   };
 
-  const successRate = stats.totalRuns > 0 ? (stats.successful / stats.totalRuns) * 100 : 0;
+  const successRate = stats.total > 0 ? (stats.successful / stats.total) * 100 : 0;
 
   if (isLoading) {
     return (
@@ -325,7 +346,7 @@ export default function TasksPage() {
 
             <TabsContent value="tasks" className="space-y-6">
               {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
@@ -381,6 +402,20 @@ export default function TasksPage() {
                 </div>
               </CardContent>
             </Card>
+
+            <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 border-emerald-200 dark:border-emerald-800">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">Успешные поиски</p>
+                    <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">{stats.totalSuccessCount}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-emerald-500 rounded-lg flex items-center justify-center">
+                    <Target className="w-6 h-6 text-white" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Success Rate */}
@@ -391,17 +426,17 @@ export default function TasksPage() {
                 Успешность выполнения
               </CardTitle>
               <CardDescription>
-                Процент успешных запусков задач
+                Процент успешных задач
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {successRate.toFixed(1)}% успешных запусков
+                    {successRate.toFixed(1)}% успешных задач
                   </span>
                   <span className="text-sm text-gray-500 dark:text-gray-400">
-                    {stats.successful} из {stats.totalRuns}
+                    {stats.successful} из {stats.total}
                   </span>
                 </div>
                 <Progress value={successRate} className="h-2" />
@@ -570,6 +605,10 @@ export default function TasksPage() {
                                 <Square className="w-4 h-4" />
                               )}
                             </Button>
+                          ) : task.status === 'COMPLETED' || task.status === 'SUCCESS' ? (
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              Завершена
+                            </div>
                           ) : (
                             <Button
                               variant="outline"

@@ -1,41 +1,50 @@
-const axios = require('axios');
-
-async function testWBApi() {
+// Простой тест для проверки API автобронирования
+const testAutoBookingAPI = async () => {
   try {
-    console.log('🧪 Тестирование Wildberries API...');
+    console.log('🧪 Тестирование API автобронирования...');
     
-    const requestBody = {
-      warehouseIDs: [117866],
-      dateFrom: new Date().toISOString(),
-      dateTo: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      isSortingCenter: false
+    // Тест GET запроса (проверка статуса)
+    const getResponse = await fetch('http://localhost:3000/api/services/auto-booking', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer test-token' // Замените на реальный токен
+      }
+    });
+    
+    console.log('GET Response status:', getResponse.status);
+    const getData = await getResponse.json();
+    console.log('GET Response data:', getData);
+    
+    // Тест POST запроса (запуск бронирования)
+    const postData = {
+      taskId: 'test-task-123',
+      runId: 'test-run-456',
+      slotId: 'test-slot-789',
+      supplyId: 'test-supply-001',
+      warehouseId: 1,
+      boxTypeId: 1,
+      date: '2024-01-15',
+      coefficient: 1.0
     };
     
-    console.log('📋 Тело запроса:', JSON.stringify(requestBody, null, 2));
+    const postResponse = await fetch('http://localhost:3000/api/services/auto-booking', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer test-token' // Замените на реальный токен
+      },
+      body: JSON.stringify(postData)
+    });
     
-    const response = await axios.post(
-      'https://supplies-api.wildberries.ru/api/v1/acceptance/coefficients',
-      requestBody,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer YOUR_TOKEN_HERE' // Замените на реальный токен
-        },
-        timeout: 10000
-      }
-    );
-    
-    console.log('✅ Ответ получен:');
-    console.log('Статус:', response.status);
-    console.log('Данные:', JSON.stringify(response.data, null, 2));
+    console.log('POST Response status:', postResponse.status);
+    const postResponseData = await postResponse.json();
+    console.log('POST Response data:', postResponseData);
     
   } catch (error) {
-    console.error('❌ Ошибка:', error.message);
-    if (error.response) {
-      console.error('Статус:', error.response.status);
-      console.error('Данные:', error.response.data);
-    }
+    console.error('❌ Ошибка тестирования API:', error.message);
   }
-}
+};
 
-testWBApi();
+// Запускаем тест через 5 секунд (даем время серверу запуститься)
+setTimeout(testAutoBookingAPI, 5000);

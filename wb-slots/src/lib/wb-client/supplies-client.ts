@@ -7,10 +7,12 @@ import {
   WBAcceptanceOptions,
   WBAPIResponse 
 } from './types';
+import { DataExtractionOptions, ProcessedResponse } from './response-processor';
+import { PaginationRequest, PaginationResult, AutoPaginationOptions } from './pagination-manager';
 
 export class WBSuppliesClient extends BaseWBClient {
-  constructor(token: string) {
-    super(token, 'https://supplies-api.wildberries.ru');
+  constructor(token: string, userId?: string) {
+    super(token, 'https://supplies-api.wildberries.ru', { userId });
   }
 
   /**
@@ -108,9 +110,9 @@ export class WBSuppliesClient extends BaseWBClient {
       
       // Показываем статистику по коэффициентам
       const coefficientStats = {
-        min: Math.min(...coefficients.map(c => c.coefficient)),
-        max: Math.max(...coefficients.map(c => c.coefficient)),
-        avg: coefficients.reduce((sum, c) => sum + c.coefficient, 0) / coefficients.length,
+        min: coefficients.length > 0 ? Math.min(...coefficients.map(c => c.coefficient)) : 0,
+        max: coefficients.length > 0 ? Math.max(...coefficients.map(c => c.coefficient)) : 0,
+        avg: coefficients.length > 0 ? coefficients.reduce((sum, c) => sum + c.coefficient, 0) / coefficients.length : 0,
         available: coefficients.filter(c => c.allowUnload).length,
         total: coefficients.length
       };
@@ -178,14 +180,14 @@ export class WBSuppliesClient extends BaseWBClient {
    * Get supplies list with filters
    * @param limit Maximum number of supplies to return (default: 1000)
    * @param offset Offset for pagination (default: 0)
-   * @param statusIDs Array of status IDs to filter (5, 6 for draft statuses)
+   * @param statusIDs Array of status IDs to filter (ignored - API doesn't support status filtering)
    * @param dateFrom Start date for filtering (ISO string)
    * @param dateTo End date for filtering (ISO string)
    */
   async getSupplies(
     limit: number = 1000, 
     offset: number = 0,
-    statusIDs: number[] = [5, 6], // 5, 6 - статусы черновик
+    statusIDs: number[] = [], // Игнорируем - API не поддерживает фильтрацию по статусам
     dateFrom?: string,
     dateTo?: string
   ): Promise<WBSupply[]> {
@@ -194,33 +196,74 @@ export class WBSuppliesClient extends BaseWBClient {
       offset,
     };
 
-    // Подготавливаем тело запроса с фильтрами
-    const requestBody: any = {
-      statusIDs: statusIDs,
-    };
-
-    // Добавляем фильтр по датам если указаны
-    if (dateFrom && dateTo) {
-      requestBody.dates = [
-        {
-          from: dateFrom,
-          till: dateTo,
-          type: "factDate"
-        }
-      ];
+    // Сначала проверим, работает ли API складов с тем же токеном
+    console.log(`🔍 Проверяем доступность API складов...`);
+    try {
+      const warehousesResponse = await this.get<WBWarehouse[]>('/api/v1/warehouses');
+      console.log(`✅ API складов работает, получено складов: ${warehousesResponse.data?.length || 0}`);
+    } catch (warehouseError: any) {
+      console.log(`❌ API складов не работает:`, warehouseError.message);
     }
 
+    // Попробуем разные endpoints для получения поставок
     console.log(`🌐 WB API запрос: POST /api/v1/supplies`);
     console.log(`📋 Параметры:`, params);
-    console.log(`📦 Тело запроса:`, requestBody);
+    console.log(`ℹ️ Примечание: Пробуем POST запрос для получения поставок`);
 
-    const response = await this.post<WBSupply[]>('/api/v1/supplies', requestBody, params);
+    let response;
+    try {
+      // Сначала пробуем POST запрос с пустым телом
+      response = await this.post<WBSupply[]>('/api/v1/supplies', {}, params);
+    } catch (error: any) {
+      console.log(`⚠️ POST /api/v1/supplies failed:`, error.message);
+      
+      if (error.code === 'NETWORK_ERROR') {
+        console.log('🌐 Network error, пробуем другой домен...');
+        // Пробуем основной API домен
+        const mainApiClient = new BaseWBClient(this.token, 'https://api.wildberries.ru');
+        try {
+          response = await mainApiClient.get<WBSupply[]>('/api/v1/supplies', params);
+        } catch (mainApiError: any) {
+          console.log(`⚠️ Main API also failed:`, mainApiError.message);
+          throw error; // Возвращаем оригинальную ошибку
+        }
+      } else if (error.statusCode === 404) {
+        console.log('⚠️ POST /api/v1/supplies не найден, пробуем GET...');
+        try {
+          response = await this.get<WBSupply[]>('/api/v1/supplies', params);
+        } catch (getError: any) {
+          if (getError.statusCode === 404) {
+            console.log('⚠️ GET /api/v1/supplies тоже не найден, пробуем /api/v3/supplies...');
+            response = await this.get<WBSupply[]>('/api/v3/supplies', params);
+          } else {
+            throw getError;
+          }
+        }
+      } else {
+        throw error;
+      }
+    }
+    
+    console.log(`📊 WB API Response:`, {
+      error: response.error,
+      errorText: response.errorText,
+      dataLength: response.data?.length || 0,
+      hasData: response.data && response.data.length > 0,
+      fullResponse: response
+    });
     
     if (response.error) {
       throw new Error(response.errorText || 'Failed to get supplies');
     }
 
-    return response.data || [];
+    // WB API возвращает данные напрямую как массив, а не в объекте с полем data
+    const supplies = Array.isArray(response) ? response : (response.data || []);
+    console.log(`✅ Получено поставок: ${supplies.length}`);
+    if (supplies.length > 0) {
+      console.log(`📦 Первая поставка:`, supplies[0]);
+    }
+    
+    return supplies;
   }
 
   /**
@@ -326,5 +369,246 @@ export class WBSuppliesClient extends BaseWBClient {
       console.error('Error checking slot availability:', error);
       return false;
     }
+  }
+
+  // ===== НОВЫЕ УЛУЧШЕННЫЕ МЕТОДЫ =====
+
+  /**
+   * Получает поставки с улучшенной обработкой ответа
+   */
+  async getSuppliesEnhanced(
+    paginationRequest: PaginationRequest = {},
+    options: DataExtractionOptions = {}
+  ): Promise<ProcessedResponse<WBSupply[]>> {
+    const params: Record<string, any> = {
+      limit: paginationRequest.limit || 1000,
+      offset: paginationRequest.offset || 0,
+    };
+
+    // Добавляем фильтры если указаны
+    if (paginationRequest.sortBy) {
+      params.sortBy = paginationRequest.sortBy;
+    }
+    if (paginationRequest.sortOrder) {
+      params.sortOrder = paginationRequest.sortOrder;
+    }
+
+    return this.getWithProcessing<WBSupply[]>('/api/v1/supplies', params, {
+      dataPath: 'data',
+      paginationPath: 'pagination',
+      validateFunction: (data) => Array.isArray(data),
+      ...options
+    });
+  }
+
+  /**
+   * Получает поставки с пагинацией
+   */
+  async getSuppliesWithPagination(
+    paginationRequest: PaginationRequest = {}
+  ): Promise<PaginationResult<WBSupply>> {
+    return this.requestWithPagination<WBSupply>({
+      method: 'GET',
+      url: '/api/v1/supplies'
+    }, paginationRequest, {
+      dataPath: 'data',
+      paginationPath: 'pagination',
+      validateFunction: (data) => Array.isArray(data)
+    });
+  }
+
+  /**
+   * Автоматически получает все поставки
+   */
+  async getAllSupplies(
+    options: AutoPaginationOptions = {}
+  ): Promise<WBSupply[]> {
+    return this.autoPaginate<WBSupply>({
+      method: 'GET',
+      url: '/api/v1/supplies'
+    }, {
+      limit: 1000,
+      page: 1
+    }, options, {
+      dataPath: 'data',
+      validateFunction: (data) => Array.isArray(data)
+    });
+  }
+
+  /**
+   * Получает коэффициенты с улучшенной обработкой ответа
+   */
+  async getCoefficientsEnhanced(
+    warehouseIds: number[],
+    dateFrom?: string,
+    dateTo?: string,
+    isSortingCenter?: boolean,
+    options: DataExtractionOptions = {}
+  ): Promise<ProcessedResponse<WBCoefficient[]>> {
+    const params: Record<string, any> = {
+      warehouseIDs: warehouseIds.join(','),
+    };
+
+    if (dateFrom) params.dateFrom = dateFrom;
+    if (dateTo) params.dateTo = dateTo;
+    if (isSortingCenter !== undefined) params.isSortingCenter = isSortingCenter;
+
+    return this.postWithProcessing<WBCoefficient[]>('/api/v1/acceptance/coefficients', {}, params, {
+      dataPath: 'data',
+      validateFunction: (data) => Array.isArray(data),
+      transformFunction: (data) => data.map((coeff: any) => ({
+        ...coeff,
+        warehouseID: parseInt(coeff.warehouseID),
+        coefficient: parseFloat(coeff.coefficient),
+        allowUnload: Boolean(coeff.allowUnload)
+      })),
+      ...options
+    });
+  }
+
+  /**
+   * Получает склады с улучшенной обработкой ответа
+   */
+  async getWarehousesEnhanced(
+    options: DataExtractionOptions = {}
+  ): Promise<ProcessedResponse<WBWarehouse[]>> {
+    return this.getWithProcessing<WBWarehouse[]>('/api/v1/warehouses', {}, {
+      dataPath: 'data',
+      validateFunction: (data) => Array.isArray(data),
+      transformFunction: (data) => data.map((warehouse: any) => ({
+        id: parseInt(warehouse.id),
+        name: warehouse.name,
+        address: warehouse.address,
+        city: warehouse.city,
+        region: warehouse.region,
+        country: warehouse.country
+      })),
+      ...options
+    });
+  }
+
+  /**
+   * Получает детали поставки с улучшенной обработкой ответа
+   */
+  async getSupplyDetailsEnhanced(
+    supplyId: string,
+    options: DataExtractionOptions = {}
+  ): Promise<ProcessedResponse<WBSupply>> {
+    return this.getWithProcessing<WBSupply>(`/api/v1/supplies/${supplyId}`, {}, {
+      dataPath: 'data',
+      validateFunction: (data) => data && typeof data === 'object',
+      ...options
+    });
+  }
+
+  /**
+   * Получает опции приемки с улучшенной обработкой ответа
+   */
+  async getAcceptanceOptionsEnhanced(
+    barcodes: string[],
+    quantities: number[],
+    options: DataExtractionOptions = {}
+  ): Promise<ProcessedResponse<WBAcceptanceOptions[]>> {
+    const data = {
+      barcodes,
+      quantities
+    };
+
+    return this.postWithProcessing<WBAcceptanceOptions[]>('/api/v1/acceptance/options', data, {}, {
+      dataPath: 'data',
+      validateFunction: (data) => Array.isArray(data),
+      ...options
+    });
+  }
+
+  /**
+   * Создает поставку с улучшенной обработкой ответа
+   */
+  async createSupplyEnhanced(
+    supplyData: Partial<WBSupply>,
+    options: DataExtractionOptions = {}
+  ): Promise<ProcessedResponse<WBSupply>> {
+    return this.postWithProcessing<WBSupply>('/api/v1/supplies', supplyData, {}, {
+      dataPath: 'data',
+      validateFunction: (data) => data && typeof data === 'object',
+      ...options
+    });
+  }
+
+  /**
+   * Обновляет поставку с улучшенной обработкой ответа
+   */
+  async updateSupplyEnhanced(
+    supplyId: string,
+    updateData: Partial<WBSupply>,
+    options: DataExtractionOptions = {}
+  ): Promise<ProcessedResponse<WBSupply>> {
+    return this.putWithProcessing<WBSupply>(`/api/v1/supplies/${supplyId}`, updateData, {}, {
+      dataPath: 'data',
+      validateFunction: (data) => data && typeof data === 'object',
+      ...options
+    });
+  }
+
+  /**
+   * Удаляет поставку с улучшенной обработкой ответа
+   */
+  async deleteSupplyEnhanced(
+    supplyId: string,
+    options: DataExtractionOptions = {}
+  ): Promise<ProcessedResponse<boolean>> {
+    return this.deleteWithProcessing<boolean>(`/api/v1/supplies/${supplyId}`, {}, {
+      dataPath: 'data',
+      validateFunction: (data) => typeof data === 'boolean',
+      ...options
+    });
+  }
+
+  /**
+   * Получает товары поставки с улучшенной обработкой ответа
+   */
+  async getSupplyGoodsEnhanced(
+    supplyId: string,
+    options: DataExtractionOptions = {}
+  ): Promise<ProcessedResponse<WBGood[]>> {
+    return this.getWithProcessing<WBGood[]>(`/api/v1/supplies/${supplyId}/goods`, {}, {
+      dataPath: 'data',
+      validateFunction: (data) => Array.isArray(data),
+      ...options
+    });
+  }
+
+  /**
+   * Добавляет товары в поставку с улучшенной обработкой ответа
+   */
+  async addGoodsToSupplyEnhanced(
+    supplyId: string,
+    goods: WBGood[],
+    options: DataExtractionOptions = {}
+  ): Promise<ProcessedResponse<WBGood[]>> {
+    return this.postWithProcessing<WBGood[]>(`/api/v1/supplies/${supplyId}/goods`, goods, {}, {
+      dataPath: 'data',
+      validateFunction: (data) => Array.isArray(data),
+      ...options
+    });
+  }
+
+  /**
+   * Получает статистику поставок с улучшенной обработкой ответа
+   */
+  async getSuppliesStatsEnhanced(
+    dateFrom?: string,
+    dateTo?: string,
+    options: DataExtractionOptions = {}
+  ): Promise<ProcessedResponse<any>> {
+    const params: Record<string, any> = {};
+    if (dateFrom) params.dateFrom = dateFrom;
+    if (dateTo) params.dateTo = dateTo;
+
+    return this.getWithProcessing('/api/v1/supplies/stats', params, {
+      dataPath: 'data',
+      validateFunction: (data) => data && typeof data === 'object',
+      ...options
+    });
   }
 }

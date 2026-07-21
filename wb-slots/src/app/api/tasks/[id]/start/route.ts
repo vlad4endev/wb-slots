@@ -29,7 +29,7 @@ export async function POST(
     // Проверяем, не закрыта ли задача
     if (task.status === 'COMPLETED') {
       return NextResponse.json({ 
-        error: 'Task is completed and cannot be restarted. Create a new task instead.' 
+        error: 'Задача успешно завершена и не может быть перезапущена. Создайте новую задачу вместо этого.' 
       }, { status: 400 });
     }
 

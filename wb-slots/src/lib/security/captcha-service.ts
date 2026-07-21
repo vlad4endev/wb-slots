@@ -1,5 +1,4 @@
-import { getTelegramService } from '../notifications/telegram-service';
-import { NotificationType } from '../notifications/telegram-config';
+import { TelegramService } from '../services/telegram-service';
 
 export interface CaptchaDetection {
   isCaptcha: boolean;
@@ -215,29 +214,13 @@ export class CaptchaService {
    */
   private async sendCaptchaNotification(notification: CaptchaNotification): Promise<void> {
     try {
-      if (!getTelegramService().isInitialized()) {
-        console.warn('⚠️ Telegram service not initialized. Skipping captcha notification.');
-        return;
-      }
-
-      const user = getTelegramService().getUser(notification.userId);
-      if (!user || !user.isActive) {
-        console.warn(`⚠️ User ${notification.userId} not registered or inactive. Skipping captcha notification.`);
-        return;
-      }
-
-      const success = await getTelegramService().sendNotification(
+      const telegramService = new TelegramService();
+      
+      const message = `🤖 Обнаружена капча при бронировании\n\n📦 Поставка: ${notification.supplyName}\n🆔 ID: ${notification.supplyId}\n🏢 Склад: ${notification.warehouseName}\n📅 Дата: ${notification.slotDate}\n⏰ Время: ${notification.slotTime}\n\n⚠️ Требуется ручное вмешательство для решения капчи.`;
+      
+      const success = await telegramService.sendNotification(
         notification.userId,
-        NotificationType.BOOKING_CAPTCHA,
-        {
-          supplyName: notification.supplyName,
-          supplyId: notification.supplyId,
-          warehouseName: notification.warehouseName,
-          slotDate: notification.slotDate,
-          slotTime: notification.slotTime,
-          coefficient: notification.coefficient.toString(),
-          taskName: notification.taskName,
-        }
+        message
       );
 
       if (success) {

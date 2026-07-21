@@ -226,6 +226,17 @@ export default function TestServicesPage() {
     }
   };
 
+  const formatError = (error: unknown): string => {
+    if (!error) return '';
+    if (typeof error === 'string') return error;
+    if (error instanceof Error) return error.message;
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 max-w-6xl">
       <div className="mb-8">
@@ -239,19 +250,25 @@ export default function TestServicesPage() {
       {slotSearchError && (
         <Alert className="mb-4" variant="destructive">
           <XCircle className="h-4 w-4" />
-          <AlertDescription>SlotSearchService: {slotSearchError}</AlertDescription>
+          <AlertDescription>
+            SlotSearchService: {formatError(slotSearchError)}
+          </AlertDescription>
         </Alert>
       )}
       {bookingError && (
         <Alert className="mb-4" variant="destructive">
           <XCircle className="h-4 w-4" />
-          <AlertDescription>AutoBookingService: {bookingError}</AlertDescription>
+          <AlertDescription>
+            AutoBookingService: {formatError(bookingError)}
+          </AlertDescription>
         </Alert>
       )}
       {telegramError && (
         <Alert className="mb-4" variant="destructive">
           <XCircle className="h-4 w-4" />
-          <AlertDescription>TelegramService: {telegramError}</AlertDescription>
+          <AlertDescription>
+            TelegramService: {formatError(telegramError)}
+          </AlertDescription>
         </Alert>
       )}
 

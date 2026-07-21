@@ -49,6 +49,16 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Получаем общий счетчик успешных поисков по всем задачам пользователя
+    const totalSuccessCountResult = await prisma.task.aggregate({
+      where: {
+        userId: user.id,
+      },
+      _sum: {
+        successCount: true,
+      },
+    });
+
     return NextResponse.json({
       success: true,
       data: {
@@ -57,6 +67,7 @@ export async function GET(request: NextRequest) {
         totalRuns,
         successfulRuns,
         foundSlots: foundSlotsResult._sum.foundSlots || 0,
+        totalSuccessCount: totalSuccessCountResult._sum.successCount || 0,
       },
     });
   } catch (error) {

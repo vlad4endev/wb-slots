@@ -1,4 +1,4 @@
-import puppeteer, { Browser, Page } from 'puppeteer';
+import { chromium, Browser, Page, BrowserContext } from 'playwright';
 import { WBSessionData } from './wb-session-manager';
 
 export interface SlotMonitoringParams {
@@ -42,7 +42,7 @@ export class WBSlotMonitor {
   async init(): Promise<void> {
     if (this.browser) return;
 
-    this.browser = await puppeteer.launch({
+    this.browser = await chromium.launch({
       headless: true,
       args: [
         '--no-sandbox',
@@ -66,6 +66,11 @@ export class WBSlotMonitor {
   ): Promise<MonitoringResult> {
     if (!this.browser) {
       throw new Error('Browser not initialized');
+    }
+
+    // Atomic check and set to prevent race conditions
+    if (this.isMonitoring) {
+      throw new Error('Monitoring is already in progress');
     }
 
     this.isMonitoring = true;
@@ -107,8 +112,8 @@ export class WBSlotMonitor {
             const slots = await this.checkAvailableSlots(page, params);
             
             for (const slot of slots) {
-              if (slot.isAvailable && slot.bookingButton?.isEnabled) {
-                console.log(`✅ Найден доступный слот: ${slot.warehouseName} - ${slot.date} ${slot.timeSlot}`);
+              if (slot?.isAvailable && slot?.bookingButton?.isEnabled) {
+                console.log(`✅ Найден доступный слот: ${slot?.warehouseName} - ${slot?.date} ${slot?.timeSlot}`);
                 foundSlots.push(slot);
                 
                 // Вызываем callback для обработки найденного слота
@@ -133,6 +138,7 @@ export class WBSlotMonitor {
       throw error;
     } finally {
       await page.close();
+      this.isBooking = false;
     }
   }
 
@@ -216,37 +222,48 @@ export class WBSlotMonitor {
   private async extractSlotInfo(element: any, supplyId: string): Promise<AvailableSlot | null> {
     try {
       // Извлекаем данные о слоте
-      const warehouseId = await element.evaluate((el: any) => {
-        return el.dataset.warehouseId || el.getAttribute('data-warehouse-id');
+      const warehouseId = await element.evaluate((el: Element) => {
+        const htmlEl = el as HTMLElement;
+        return htmlEl.dataset.warehouseId || htmlEl.getAttribute('data-warehouse-id');
       });
 
-      const warehouseName = await element.evaluate((el: any) => {
-        return el.querySelector('.warehouse-name, [data-testid="warehouse-name"]')?.textContent?.trim() || 'Неизвестный склад';
+      const warehouseName = await element.evaluate((el: Element) => {
+        const htmlEl = el as HTMLElement;
+        const nameEl = htmlEl.querySelector('.warehouse-name, [data-testid="warehouse-name"]');
+        return nameEl?.textContent?.trim() || 'Неизвестный склад';
       });
 
-      const date = await element.evaluate((el: any) => {
-        return el.querySelector('.slot-date, [data-testid="slot-date"]')?.textContent?.trim() || '';
+      const date = await element.evaluate((el: Element) => {
+        const htmlEl = el as HTMLElement;
+        const dateEl = htmlEl.querySelector('.slot-date, [data-testid="slot-date"]');
+        return dateEl?.textContent?.trim() || '';
       });
 
-      const timeSlot = await element.evaluate((el: any) => {
-        return el.querySelector('.slot-time, [data-testid="slot-time"]')?.textContent?.trim() || '';
+      const timeSlot = await element.evaluate((el: Element) => {
+        const htmlEl = el as HTMLElement;
+        const timeEl = htmlEl.querySelector('.slot-time, [data-testid="slot-time"]');
+        return timeEl?.textContent?.trim() || '';
       });
 
-      const coefficient = await element.evaluate((el: any) => {
-        const coefText = el.querySelector('.coefficient, [data-testid="coefficient"]')?.textContent?.trim();
+      const coefficient = await element.evaluate((el: Element) => {
+        const htmlEl = el as HTMLElement;
+        const coefEl = htmlEl.querySelector('.coefficient, [data-testid="coefficient"]');
+        const coefText = coefEl?.textContent?.trim();
         return coefText ? parseFloat(coefText) : 0;
       });
 
       // Проверяем доступность слота
-      const isAvailable = await element.evaluate((el: any) => {
-        return !el.classList.contains('disabled') && 
-               !el.classList.contains('unavailable') &&
-               !el.hasAttribute('disabled');
+      const isAvailable = await element.evaluate((el: Element) => {
+        const htmlEl = el as HTMLElement;
+        return !htmlEl.classList.contains('disabled') && 
+               !htmlEl.classList.contains('unavailable') &&
+               !htmlEl.hasAttribute('disabled');
       });
 
       // Ищем кнопку бронирования
-      const bookingButton = await element.evaluate((el: any) => {
-        const button = el.querySelector('button[data-testid="book-slot"], button:contains("Забронировать"), .book-button');
+      const bookingButton = await element.evaluate((el: Element) => {
+        const htmlEl = el as HTMLElement;
+        const button = htmlEl.querySelector('button[data-testid="book-slot"], button:contains("Забронировать"), .book-button') as HTMLButtonElement;
         return button ? {
           selector: 'button[data-testid="book-slot"], button:contains("Забронировать"), .book-button',
           isEnabled: !button.disabled && !button.classList.contains('disabled')
@@ -255,12 +272,15 @@ export class WBSlotMonitor {
 
       return {
         supplyId,
-        warehouseId: parseInt(warehouseId) || 0,
-        warehouseName,
-        date,
-        timeSlot,
-        coefficient,
-        isAvailable,
+        warehouseId: (() => {
+          const parsed = parseInt(warehouseId || '0');
+          return isNaN(parsed) ? 0 : parsed;
+        })(),
+        warehouseName: warehouseName || 'Неизвестный склад',
+        date: date || '',
+        timeSlot: timeSlot || '',
+        coefficient: coefficient || 0,
+        isAvailable: isAvailable || false,
         bookingButton,
       };
 
@@ -277,6 +297,13 @@ export class WBSlotMonitor {
     if (!this.browser) {
       throw new Error('Browser not initialized');
     }
+
+    // Atomic check and set to prevent race conditions
+    if (this.isBooking) {
+      throw new Error('Booking is already in progress');
+    }
+
+    this.isBooking = true;
 
     const page = await this.browser.newPage();
     
@@ -331,6 +358,7 @@ export class WBSlotMonitor {
       return { success: false, error: error instanceof Error ? error.message : 'Неизвестная ошибка' };
     } finally {
       await page.close();
+      this.isBooking = false;
     }
   }
 

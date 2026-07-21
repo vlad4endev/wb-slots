@@ -1,54 +1,57 @@
-// Простой скрипт для обновления роли пользователя
-const { PrismaClient } = require('@prisma/client');
+const http = require('http');
 
-const prisma = new PrismaClient();
+// Данные для изменения роли
+const roleData = {
+  email: 'vl4en.95@yandex.ru',
+  role: 'DEVELOPER'
+};
 
-async function fixUserRole() {
-  try {
-    console.log('🔄 Ищем пользователя...');
-    
-    // Сначала найдем пользователя
-    const user = await prisma.user.findUnique({
-      where: { id: 'cmfbry14q0000136cf6k6yhu2' }
-    });
-    
-    if (!user) {
-      console.log('❌ Пользователь не найден');
-      return;
-    }
-    
-    console.log('👤 Найден пользователь:', {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role
-    });
-    
-    console.log('🔄 Обновляем роль...');
-    
-    // Обновляем роль
-    const updatedUser = await prisma.user.update({
-      where: { id: 'cmfbry14q0000136cf6k6yhu2' },
-      data: { 
-        role: 'DEVELOPER',
-        isProtected: true
-      }
-    });
-    
-    console.log('✅ Роль обновлена!');
-    console.log('👤 Новые данные:', {
-      id: updatedUser.id,
-      email: updatedUser.email,
-      name: updatedUser.name,
-      role: updatedUser.role,
-      isProtected: updatedUser.isProtected
-    });
-    
-  } catch (error) {
-    console.error('❌ Ошибка:', error);
-  } finally {
-    await prisma.$disconnect();
+const postData = JSON.stringify(roleData);
+
+const options = {
+  hostname: 'localhost',
+  port: 3000,
+  path: '/api/debug/set-user-role',
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(postData)
   }
-}
+};
 
-fixUserRole();
+console.log('🔄 Changing user role: vl4en.95@yandex.ru -> DEVELOPER...');
+
+const req = http.request(options, (res) => {
+  console.log(`Status: ${res.statusCode}`);
+  
+  let data = '';
+  res.on('data', (chunk) => {
+    data += chunk;
+  });
+  
+  res.on('end', () => {
+    try {
+      const response = JSON.parse(data);
+      if (res.statusCode === 200 && response.success) {
+        console.log('✅ User role updated successfully!');
+        console.log('User:', response.user);
+        console.log('\n🎉 Now you can configure Telegram bot token!');
+        console.log('Next step: Run "node set-telegram-token.js" to set up your bot.');
+      } else {
+        console.log('❌ Error updating user role:');
+        console.log('Status:', res.statusCode);
+        console.log('Response:', response);
+      }
+    } catch (error) {
+      console.log('Error parsing response:', error.message);
+      console.log('Raw response:', data);
+    }
+  });
+});
+
+req.on('error', (err) => {
+  console.log(`Error: ${err.message}`);
+});
+
+req.write(postData);
+req.end();

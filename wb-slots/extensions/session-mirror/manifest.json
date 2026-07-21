@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "WB Session Mirror",
+  "description": "Keeps Wildberries supplier session alive and syncs critical cookies for autobooking.",
+  "version": "1.0.0",
+  "permissions": [
+    "cookies",
+    "storage",
+    "alarms",
+    "notifications",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://seller.wildberries.ru/*",
+    "https://*.wildberries.ru/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Session Mirror"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://seller.wildberries.ru/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
+

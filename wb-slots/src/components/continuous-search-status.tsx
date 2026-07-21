@@ -30,6 +30,7 @@ interface ContinuousSearchStatusProps {
   autoBook: boolean;
   autoBookSupplyId?: string;
   filters: any;
+  taskStatus?: string;
 }
 
 interface SearchStatus {
@@ -74,7 +75,8 @@ export default function ContinuousSearchStatus({
   taskName, 
   autoBook, 
   autoBookSupplyId,
-  filters 
+  filters,
+  taskStatus 
 }: ContinuousSearchStatusProps) {
   const [searchData, setSearchData] = useState<SearchData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -242,7 +244,12 @@ export default function ContinuousSearchStatus({
               </CardDescription>
             </div>
             <div className="flex gap-2">
-              {isSearching ? (
+              {taskStatus === 'COMPLETED' || taskStatus === 'SUCCESS' ? (
+                <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4" />
+                  Задача завершена
+                </div>
+              ) : isSearching ? (
                 <Button 
                   onClick={stopSearch} 
                   disabled={actionLoading}

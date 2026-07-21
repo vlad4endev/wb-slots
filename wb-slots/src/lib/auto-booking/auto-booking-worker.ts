@@ -2,8 +2,7 @@ import puppeteer, { Browser, Page, PuppeteerLaunchOptions } from 'puppeteer';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AutoBookingConfig, BookingParams, DEFAULT_CONFIG } from './config';
-import { getTelegramService } from '../notifications/telegram-service';
-import { NotificationType } from '../notifications/telegram-config';
+import { TelegramService } from '../services/telegram-service';
 import { captchaService } from '../security/captcha-service';
 import { retryService, RetryContext } from '../security/retry-service';
 
@@ -167,7 +166,7 @@ export class AutoBookingWorker {
       this.log('info', 'initialize', 'Initializing browser...');
       
       const launchOptions: PuppeteerLaunchOptions = {
-        headless: this.config.headless,
+        headless: true,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -517,15 +516,9 @@ export class AutoBookingWorker {
       this.log('info', 'executeBooking', 'Starting auto-booking process...', { params });
 
       // Отправляем уведомление о начале бронирования
-      if (this.userId && getTelegramService().isInitialized()) {
-        await getTelegramService().sendNotification(this.userId, NotificationType.BOOKING_STARTED, {
-          supplyName: this.supplyName || 'Unknown',
-          supplyId: params.supplyId,
-          warehouseName: 'Loading...',
-          slotDate: 'Loading...',
-          slotTime: 'Loading...',
-          coefficient: 'Loading...',
-        });
+      if (this.userId) {
+        const telegramService = new TelegramService();
+        await telegramService.sendNotification(this.userId, `🚀 Начато бронирование слота\n\n📦 Поставка: ${params.supplyId}\n🏢 Склад: ${params.slotFilters.warehouseId}\n📅 Дата: ${params.slotFilters.date}`);
       }
 
       // Выполняем бронирование с retry логикой
@@ -572,18 +565,9 @@ export class AutoBookingWorker {
 
       if (!retryResult.success) {
         // Отправляем уведомление об ошибке
-        if (this.userId && getTelegramService().isInitialized()) {
-          await getTelegramService().sendNotification(this.userId, NotificationType.BOOKING_ERROR, {
-            supplyName: this.supplyName || 'Unknown',
-            supplyId: params.supplyId,
-            warehouseName: 'Unknown',
-            slotDate: 'Unknown',
-            slotTime: 'Unknown',
-            coefficient: 'Unknown',
-            errorMessage: retryResult.error || 'Booking failed after all retries',
-            executionTime: Math.round((Date.now() - startTime) / 1000),
-            taskName: this.taskName || 'Unknown',
-          });
+        if (this.userId) {
+          const telegramService = new TelegramService();
+          await telegramService.sendNotification(this.userId, `❌ Ошибка бронирования слота\n\n📦 Поставка: ${params.supplyId}\n🏢 Склад: ${params.slotFilters.warehouseId}\n📅 Дата: ${params.slotFilters.date}\n🚫 Ошибка: ${retryResult.error}`);
         }
 
         return {
@@ -596,18 +580,9 @@ export class AutoBookingWorker {
       }
 
       // Отправляем уведомление об успешном бронировании
-      if (this.userId && getTelegramService().isInitialized()) {
-        await getTelegramService().sendNotification(this.userId, NotificationType.BOOKING_SUCCESS, {
-          supplyName: this.supplyName || 'Unknown',
-          supplyId: params.supplyId,
-          warehouseName: 'Unknown',
-          slotDate: 'Unknown',
-          slotTime: 'Unknown',
-          coefficient: 'Unknown',
-          bookingId: retryResult.result?.bookingId || 'Unknown',
-          executionTime: Math.round((Date.now() - startTime) / 1000),
-          taskName: this.taskName || 'Unknown',
-        });
+      if (this.userId) {
+        const telegramService = new TelegramService();
+        await telegramService.sendNotification(this.userId, `🎉 Слот успешно забронирован!\n\n📦 Поставка: ${params.supplyId}\n🏢 Склад: ${params.slotFilters.warehouseId}\n📅 Дата: ${params.slotFilters.date}`);
       }
 
       this.log('info', 'executeBooking', 'Auto-booking completed successfully');
@@ -625,18 +600,9 @@ export class AutoBookingWorker {
       await this.takeScreenshot('booking_process_error');
       
       // Отправляем уведомление об ошибке процесса
-      if (this.userId && getTelegramService().isInitialized()) {
-        await getTelegramService().sendNotification(this.userId, NotificationType.BOOKING_ERROR, {
-          supplyName: this.supplyName || 'Unknown',
-          supplyId: params.supplyId,
-          warehouseName: 'Unknown',
-          slotDate: 'Unknown',
-          slotTime: 'Unknown',
-          coefficient: 'Unknown',
-          errorMessage: error instanceof Error ? error.message : 'Unknown error',
-          executionTime: Math.round((Date.now() - startTime) / 1000),
-          taskName: this.taskName || 'Unknown',
-        });
+      if (this.userId) {
+        const telegramService = new TelegramService();
+        await telegramService.sendNotification(this.userId, `❌ Критическая ошибка бронирования\n\n📦 Поставка: ${params.supplyId}\n🏢 Склад: ${params.slotFilters.warehouseId}\n📅 Дата: ${params.slotFilters.date}\n🚫 Ошибка: ${error.message}`);
       }
       
       return {

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
+import { prisma } from '@/lib/prisma';
+import { WBSuppliesClient } from '@/lib/wb-client/supplies-client';
+import { decrypt } from '@/lib/encryption';
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,74 +10,150 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     
     // Параметры для фильтрации поставок
-    const limit = searchParams.get('limit') || '50';
-    const offset = searchParams.get('offset') || '0';
+    const limit = parseInt(searchParams.get('limit') || '50');
+    const offset = parseInt(searchParams.get('offset') || '0');
+    const status = searchParams.get('status') || 'all'; // all, draft, active, closed
+    const dateFrom = searchParams.get('dateFrom') || undefined;
+    const dateTo = searchParams.get('dateTo') || undefined;
 
     console.log(`📦 Frontend API: Fetching supplies for user ${user.id}`, {
       limit,
       offset,
+      status,
+      dateFrom,
+      dateTo,
     });
 
-    // Извлекаем JWT токен из cookie для передачи в backend
-    const authToken = request.cookies.get('auth-token')?.value;
-    if (!authToken) {
-      console.error('❌ No auth token found in cookies');
+    // Получаем токен пользователя
+    const suppliesToken = await prisma.userToken.findFirst({
+      where: {
+        userId: user.id,
+        category: 'SUPPLIES',
+        isActive: true,
+      },
+    });
+
+    if (!suppliesToken) {
+      console.error('❌ No active supplies token found for user:', user.id);
       return NextResponse.json(
-        { success: false, error: 'Authentication token not found' },
-        { status: 401 }
+        { 
+          success: false, 
+          error: 'No active supplies token found. Please add a SUPPLIES token in settings.',
+          supplies: [],
+          pagination: {
+            limit,
+            offset,
+            total: 0,
+            hasMore: false,
+          }
+        },
+        { status: 400 }
       );
     }
 
-    // Выполняем запрос к backend
-    const backendUrl = new URL(`${BACKEND_URL}/supplies`);
-    backendUrl.searchParams.set('limit', limit);
-    backendUrl.searchParams.set('offset', offset);
+    // Расшифровываем токен
+    const decryptedToken = decrypt(suppliesToken.tokenEncrypted);
+    console.log('🔓 Token decrypted successfully');
 
-    const backendResponse = await fetch(backendUrl.toString(), {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-      },
-    }).catch((error) => {
-      console.error('❌ Backend connection error:', error);
-      throw new Error(`Backend connection failed: ${error.message}`);
+    // Создаем WB клиент
+    const wbClient = new WBSuppliesClient(decryptedToken);
+
+    // Получаем поставки из WB API (API не поддерживает фильтрацию по статусам)
+    console.log('🚀 Вызываем wbClient.getSupplies с параметрами:', {
+      limit,
+      offset,
+      dateFrom,
+      dateTo
     });
-
-    if (!backendResponse.ok) {
-      const errorText = await backendResponse.text();
-      console.error(`❌ Backend API error: ${backendResponse.status}`, errorText);
+    
+    let wbSupplies;
+    try {
+      wbSupplies = await wbClient.getSupplies(
+        limit, 
+        offset, 
+        [], // Пустой массив статусов - API не поддерживает фильтрацию
+        dateFrom,
+        dateTo
+      );
+      
+      console.log('✅ WB API ответ получен:', {
+        suppliesCount: wbSupplies?.length || 0,
+        firstSupply: wbSupplies?.[0] || null
+      });
+    } catch (wbError) {
+      console.error('❌ Ошибка WB API:', wbError);
+      const errorMessage = wbError instanceof Error ? wbError.message : String(wbError);
       
       return NextResponse.json(
         { 
           success: false, 
-          error: `Backend API error: ${backendResponse.status}`,
-          details: errorText 
+          error: `WB API Error: ${errorMessage}`,
+          supplies: [],
+          pagination: {
+            limit,
+            offset,
+            total: 0,
+            hasMore: false,
+          }
         },
-        { status: backendResponse.status }
+        { status: 500 }
       );
     }
 
-    const backendData = await backendResponse.json();
-    
-    console.log(`✅ Backend API response received`, {
-      success: backendData.success,
-      suppliesCount: backendData.data?.supplies?.length || 0,
-    });
+    // Преобразуем в наш формат (WB API возвращает другую структуру)
+    let supplies = wbSupplies.map(supply => ({
+      id: supply.supplyID || supply.preorderID?.toString() || 'unknown',
+      name: supply.supplyID ? `Поставка ${supply.supplyID}` : `Предзаказ ${supply.preorderID}`,
+      status: supply.statusName || 'unknown',
+      warehouseId: 0, // WB API не возвращает warehouseId в этом endpoint
+      boxTypeId: 0, // WB API не возвращает boxTypeId в этом endpoint
+      supplyDate: supply.supplyDate,
+      factDate: supply.factDate,
+      createdAt: supply.createDate,
+      updatedAt: supply.updatedDate,
+      goods: [], // WB API не возвращает товары в списке поставок
+      phone: supply.phone,
+      preorderID: supply.preorderID,
+      supplyID: supply.supplyID,
+    }));
+
+    // Фильтруем по статусам на стороне приложения (WB API возвращает текстовые статусы)
+    if (status !== 'all') {
+      let statusFilter: string[] = [];
+      switch (status) {
+        case 'draft':
+          statusFilter = ['Черновик']; // Черновик
+          break;
+        case 'active':
+          statusFilter = ['Не запланировано']; // Не запланировано
+          break;
+        case 'closed':
+          statusFilter = ['Принято', 'Отгрузка разрешена']; // Закрытые статусы
+          break;
+      }
+      
+      if (statusFilter.length > 0) {
+        const beforeFilter = supplies.length;
+        supplies = supplies.filter(supply => statusFilter.includes(supply.status));
+        console.log(`🔍 Фильтрация по статусам ${statusFilter}: ${beforeFilter} → ${supplies.length}`);
+      }
+    }
+
+    console.log(`✅ Успешно получено поставок: ${supplies.length}`);
 
     // Возвращаем структурированный JSON ответ
     return NextResponse.json({
       success: true,
       data: {
-        supplies: backendData.data?.supplies || [],
-        pagination: backendData.data?.pagination || {
-          limit: parseInt(limit),
-          offset: parseInt(offset),
-          total: 0,
-          hasMore: false,
+        supplies,
+        pagination: {
+          limit,
+          offset,
+          total: supplies.length,
+          hasMore: supplies.length === limit, // Предполагаем, что есть еще, если получили полный лимит
         },
       },
-      message: `Found ${backendData.data?.supplies?.length || 0} supplies`,
+      message: `Found ${supplies.length} supplies`,
     });
 
   } catch (error) {
@@ -94,7 +171,14 @@ export async function GET(request: NextRequest) {
       { 
         success: false, 
         error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error',
+        supplies: [],
+        pagination: {
+          limit: 50,
+          offset: 0,
+          total: 0,
+          hasMore: false,
+        }
       },
       { status: 500 }
     );

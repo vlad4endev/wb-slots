@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { encrypt } from '@/lib/encryption';
+import { maskToken } from '@/lib/encryption';
+import { logger } from '@/lib/logging';
+import { getUnifiedSessionManager } from '@/lib/session';
+import crypto from 'crypto';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,34 +18,59 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Подготавливаем данные для сохранения
-    const sessionData = {
+    // Используем UnifiedWBSessionManager для сохранения в правильном формате
+    const sessionManager = getUnifiedSessionManager();
+    
+    // Создаем структурированные данные сессии
+    const sessionId = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 дней
+    
+    const fullSessionData = {
+      sessionId,
       cookies,
       localStorage: localStorage || {},
-      sessionStorage: sessionStorage || {}
+      sessionStorage: sessionStorage || {},
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      expiresAt: expiresAt.toISOString(),
+      metadata: {
+        createdAt: new Date(),
+        lastValidated: new Date(),
+        version: '3.0-unified'
+      }
     };
 
-    // Шифруем данные в формате, совместимом с WBSessionManager
-    const encryptedData = encrypt(JSON.stringify(sessionData.cookies));
+    // Шифруем все данные в едином формате (используем приватный метод через типизацию)
+    // Для этого создаем временный экземпляр менеджера
+    const tempManager = getUnifiedSessionManager();
+    const encryptedSessionData = (tempManager as any).encrypt(JSON.stringify(fullSessionData));
 
-    // Сохраняем в базу данных
+    // Сохраняем в базу данных с новой схемой
     await prisma.wBSession.upsert({
       where: {
         userId: user.id
       },
       update: {
-        cookies: { encrypted: encryptedData } as any,
+        sessionData: encryptedSessionData,
+        expiresAt,
         isActive: true,
-        lastUsedAt: new Date()
+        lastUsedAt: new Date(),
+        lastValidated: new Date()
       },
       create: {
         userId: user.id,
-        sessionId: `session_${Date.now()}_${user.id}`,
-        cookies: { encrypted: encryptedData } as any,
+        sessionData: encryptedSessionData,
+        expiresAt,
         isActive: true,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 дней
+        lastValidated: new Date(),
         lastUsedAt: new Date()
       }
+    });
+
+    logger.info('Cookies saved successfully', {
+      userId: user.id,
+      sessionId: maskToken(sessionId),
+      cookiesCount: cookies.length,
+      expiresAt
     });
 
     return NextResponse.json({
@@ -51,7 +79,10 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Extract cookies error:', error);
+    logger.error('Extract cookies failed', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      errorType: error instanceof Error ? error.constructor.name : typeof error
+    });
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Internal server error'

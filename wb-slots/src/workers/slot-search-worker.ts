@@ -2,6 +2,7 @@ import { Worker, Job } from 'bullmq';
 import { WBSlotSearch, SlotSearchConfig } from '@/lib/wb-slot-search';
 import { TelegramNotifier } from '@/lib/telegram-notifier';
 import { prisma } from '@/lib/prisma';
+import { logger } from '@/lib/logging';
 
 interface SlotSearchJobData {
   searchConfig: SlotSearchConfig;
@@ -31,14 +32,17 @@ export class SlotSearchWorker {
   private async processJob(job: Job<SlotSearchJobData>) {
     const { searchConfig, priority } = job.data;
 
-    console.log(`🔍 Запуск поиска слотов для задачи ${searchConfig.taskId}`);
+    logger.info({ taskId: searchConfig.taskId, priority }, 'Starting slot search job');
+
+    // Объявляем run вне блока try-catch для доступа в catch
+    let run: { id: string } | null = null;
 
     try {
       // Обновляем статус задачи на "выполняется"
       await this.updateTaskStatus(searchConfig.taskId, 'RUNNING');
 
       // Создаем запись о запуске
-      const run = await prisma.run.create({
+      run = await prisma.run.create({
         data: {
           taskId: searchConfig.taskId,
           userId: searchConfig.userId,
@@ -80,24 +84,45 @@ export class SlotSearchWorker {
       // Создаем логи
       await this.createRunLogs(run.id, result);
 
-      console.log(`✅ Поиск слотов завершен для задачи ${searchConfig.taskId}. Найдено: ${result.foundSlots.length}`);
+      logger.info({ 
+        taskId: searchConfig.taskId, 
+        foundSlots: result.foundSlots.length,
+        runId: run.id
+      }, 'Slot search job completed');
+      
       return result;
 
     } catch (error) {
-      console.error(`❌ Ошибка поиска слотов для задачи ${searchConfig.taskId}:`, error);
+      logger.error({ 
+        taskId: searchConfig.taskId,
+        runId: run?.id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      }, 'Slot search job failed');
       
       // Обновляем статус на "ошибка"
       await this.updateTaskStatus(searchConfig.taskId, 'FAILED');
       
-      // Создаем запись об ошибке
-      await prisma.runLog.create({
-        data: {
-          runId: searchConfig.taskId, // Временно используем taskId
-          level: 'ERROR',
-          message: error instanceof Error ? error.message : 'Неизвестная ошибка',
-          meta: { error: error },
-        },
-      });
+      // Создаем запись об ошибке только если run был создан
+      if (run) {
+        try {
+          await prisma.runLog.create({
+            data: {
+              runId: run.id, // Исправлено: используем run.id вместо taskId
+              level: 'ERROR',
+              message: error instanceof Error ? error.message : 'Неизвестная ошибка',
+              meta: { error: error },
+            },
+          });
+        } catch (logError) {
+          logger.error({ 
+            error: logError instanceof Error ? logError.message : 'Unknown error',
+            runId: run.id
+          }, 'Failed to create error log entry');
+        }
+      } else {
+        logger.warn({ taskId: searchConfig.taskId }, 'Cannot create error log: run was not created');
+      }
 
       throw error;
     }
@@ -105,14 +130,27 @@ export class SlotSearchWorker {
 
   private async updateTaskStatus(taskId: string, status: 'RUNNING' | 'SUCCESS' | 'FAILED') {
     try {
+      const updateData: any = {
+        status: status === 'SUCCESS' ? 'COMPLETED' : status,
+        enabled: status === 'SUCCESS' ? false : (status === 'RUNNING' ? true : false),
+      };
+
+      // Увеличиваем счетчик успешных поисков при успешном завершении
+      if (status === 'SUCCESS') {
+        updateData.successCount = {
+          increment: 1
+        };
+      }
+
       await prisma.task.update({
         where: { id: taskId },
-        data: { 
-          enabled: status === 'SUCCESS' ? true : false,
-        },
+        data: updateData,
       });
     } catch (error) {
-      console.error('Error updating task status:', error);
+      logger.error({ 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        taskId
+      }, 'Error updating task status');
     }
   }
 
@@ -161,20 +199,30 @@ export class SlotSearchWorker {
         data: logs,
       });
     } catch (error) {
-      console.error('Error creating run logs:', error);
+      logger.error({ 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        runId
+      }, 'Error creating run logs');
     }
   }
 
   private onJobCompleted(job: Job<SlotSearchJobData>) {
-    console.log(`✅ Задача поиска слотов ${job.id} завершена успешно`);
+    logger.info({ jobId: job.id }, 'Slot search job completed successfully');
   }
 
   private onJobFailed(job: Job<SlotSearchJobData> | undefined, error: Error) {
-    console.error(`❌ Задача поиска слотов ${job?.id} завершилась с ошибкой:`, error);
+    logger.error({ 
+      jobId: job?.id,
+      error: error.message,
+      stack: error.stack
+    }, 'Slot search job failed');
   }
 
   private onWorkerError(error: Error) {
-    console.error('❌ Ошибка воркера поиска слотов:', error);
+    logger.error({ 
+      error: error.message,
+      stack: error.stack
+    }, 'Slot search worker error');
   }
 
   /**
@@ -191,14 +239,14 @@ export class SlotSearchWorker {
       });
 
       if (!telegramSettings) {
-        console.log('📱 Настройки Telegram не найдены для пользователя', userId);
+        logger.debug({ userId }, 'Telegram settings not found for user');
         return;
       }
 
       const { botToken, chatId } = telegramSettings.settings as any;
       
       if (!botToken || !chatId) {
-        console.log('📱 Токен бота или Chat ID не настроены');
+        logger.warn({ userId }, 'Bot token or Chat ID not configured');
         return;
       }
 
@@ -206,13 +254,20 @@ export class SlotSearchWorker {
       const result = await notifier.sendBookingNotification(foundSlots);
 
       if (result.success) {
-        console.log('✅ Уведомление в Telegram отправлено успешно');
+        logger.info({ userId, slotsCount: foundSlots.length }, 'Telegram notification sent successfully');
       } else {
-        console.error('❌ Ошибка отправки уведомления в Telegram:', result.error);
+        logger.error({ 
+          userId, 
+          error: result.error 
+        }, 'Failed to send Telegram notification');
       }
 
     } catch (error) {
-      console.error('❌ Ошибка отправки уведомлений в Telegram:', error);
+      logger.error({ 
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      }, 'Error sending Telegram notifications');
     }
   }
 

@@ -107,6 +107,11 @@ export class WBSlotFinder {
       7: 'Supersafe',
     };
 
+    // Проверяем, что apiBoxTypes существует и является массивом
+    if (!apiBoxTypes || !Array.isArray(apiBoxTypes)) {
+      return requestedBoxTypeIds.map(id => boxTypeMap[id] || `Type ${id}`);
+    }
+
     return requestedBoxTypeIds
       .filter(id => apiBoxTypes.some(bt => bt.id === id && bt.available))
       .map(id => boxTypeMap[id] || `Type ${id}`);
@@ -122,6 +127,11 @@ export class WBSlotFinder {
         dateFrom: date,
         dateTo: date,
       });
+
+      // Проверяем, что coefficients существует и является массивом
+      if (!coefficients || !Array.isArray(coefficients)) {
+        return false;
+      }
 
       return coefficients.some((coef: any) => coef.available);
     } catch (error) {

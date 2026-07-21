@@ -10,6 +10,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ProtectedRoute from '@/components/protected-route';
 import ChangePasswordForm from '@/components/change-password-form';
+import { SaveButton } from '@/components/ui/save-button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useToast } from '@/hooks/use-toast';
 import { 
   FiSettings as Settings, 
   FiKey as Key, 
@@ -51,6 +54,7 @@ import {
 import Link from 'next/link';
 import DashboardLayout from '@/app/dashboard-layout';
 import TelegramSettings from '@/components/telegram-settings';
+import UserProfileTelegram from '@/components/user-profile-telegram';
 
 interface UserToken {
   id: string;
@@ -77,6 +81,15 @@ interface WarehouseReference {
   isActive: boolean;
 }
 
+interface TelegramUser {
+  id: string;
+  firstName: string;
+  lastName?: string;
+  username?: string;
+  languageCode?: string;
+  isPremium?: boolean;
+}
+
 interface UserProfile {
   id: string;
   email: string;
@@ -87,10 +100,25 @@ interface UserProfile {
   isProtected?: boolean;
   isActive?: boolean;
   emailVerified?: boolean;
+  telegramUser?: TelegramUser;
+}
+
+interface SearchSettings {
+  checkInterval: number;
+  maxAttempts: number;
+  apiRateLimit: number;
+  stopOnFirstFound: boolean;
+  retryPolicy: {
+    maxRetries: number;
+    backoffMs: number;
+  };
+  priority: number;
+  enabled: boolean;
 }
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState('profile');
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState('general'); // Изменено: general вместо profile
   const [tokens, setTokens] = useState<UserToken[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [warehouseRefs, setWarehouseRefs] = useState<WarehouseReference[]>([]);
@@ -105,6 +133,37 @@ export default function SettingsPage() {
   const [isSyncingWarehouses, setIsSyncingWarehouses] = useState(false);
   const [warehouseStats, setWarehouseStats] = useState({ total: 0, active: 0, inactive: 0 });
   const [showTelegramSettings, setShowTelegramSettings] = useState(false);
+  
+  // Настройки поиска
+  const [searchSettings, setSearchSettings] = useState<SearchSettings>({
+    checkInterval: 10,
+    maxAttempts: 100,
+    apiRateLimit: 6,
+    stopOnFirstFound: true,
+    retryPolicy: {
+      maxRetries: 3,
+      backoffMs: 5000,
+    },
+    priority: 5,
+    enabled: true,
+  });
+  const [isSavingSearch, setIsSavingSearch] = useState(false);
+  const [isLoadingSearch, setIsLoadingSearch] = useState(false);
+  
+  // Диалоги подтверждения
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+    variant?: 'default' | 'destructive';
+  }>({
+    open: false,
+    title: '',
+    description: '',
+    onConfirm: () => {},
+    variant: 'default',
+  });
 
   // Формы
   const [newToken, setNewToken] = useState({
@@ -132,8 +191,8 @@ export default function SettingsPage() {
       setIsLoading(true);
       setError('');
       
-      // Сначала проверяем аутентификацию
-      const profileRes = await fetch('/api/auth/me');
+      // Сначала проверяем аутентификацию и загружаем профиль
+      const profileRes = await fetch('/api/auth/profile');
       const profileData = await profileRes.json();
       
       if (!profileData.success) {
@@ -141,6 +200,8 @@ export default function SettingsPage() {
         window.location.href = '/';
         return;
       }
+      
+      setProfile(profileData.data.user);
       
       // Загружаем данные параллельно для ускорения
       const [tokensRes, warehousesRes] = await Promise.allSettled([
@@ -216,14 +277,50 @@ export default function SettingsPage() {
     }
   }, []);
 
+  // Загрузка настроек поиска
+  const fetchSearchSettings = useCallback(async () => {
+    try {
+      setIsLoadingSearch(true);
+      const response = await fetch('/api/settings/search');
+      const data = await response.json();
+      
+      if (data.success) {
+        setSearchSettings(data.data);
+      }
+    } catch (error) {
+      console.error('Error loading search settings:', error);
+    } finally {
+      setIsLoadingSearch(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!isDataLoaded) {
       fetchData();
     }
-  }, [fetchData, isDataLoaded]);
+    fetchSearchSettings();
+  }, [fetchData, isDataLoaded, fetchSearchSettings]);
 
   const handleAddToken = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Валидация на клиенте
+    if (!newToken.token.trim()) {
+      setError('Токен не может быть пустым');
+      return;
+    }
+    
+    if (!newToken.category) {
+      setError('Выберите категорию токена');
+      return;
+    }
+    
+    console.log('🔑 Отправляем токен на сервер:', {
+      category: newToken.category,
+      tokenLength: newToken.token.length,
+      hasToken: !!newToken.token
+    });
+    
     try {
       const response = await fetch('/api/tokens', {
         method: 'POST',
@@ -231,37 +328,58 @@ export default function SettingsPage() {
         body: JSON.stringify(newToken),
       });
 
+      console.log('📡 Ответ сервера:', response.status, response.statusText);
+      
       const data = await response.json();
+      console.log('📊 Данные ответа:', data);
+      
       if (data.success) {
+        console.log('✅ Токен успешно добавлен');
         setTokens([...tokens, data.data.token]);
         setNewToken({ category: 'SUPPLIES', token: '' });
         setError('');
       } else {
+        console.error('❌ Ошибка добавления токена:', data.error);
         setError(data.error || 'Ошибка добавления токена');
       }
     } catch (error) {
-      console.error('Error adding token:', error);
-      setError('Ошибка добавления токена');
+      console.error('💥 Ошибка при отправке запроса:', error);
+      setError('Ошибка добавления токена: ' + (error instanceof Error ? error.message : 'Неизвестная ошибка'));
     }
   };
 
-  const handleDeleteToken = async (tokenId: string) => {
-    try {
-      const response = await fetch(`/api/tokens/${tokenId}`, {
-        method: 'DELETE',
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setTokens((tokens || []).filter(token => token.id !== tokenId));
-        setError('');
-      } else {
-        setError(data.error || 'Ошибка удаления токена');
-      }
-    } catch (error) {
-      console.error('Error deleting token:', error);
-      setError('Ошибка удаления токена');
-    }
+  const handleDeleteToken = (tokenId: string) => {
+    const token = tokens.find(t => t.id === tokenId);
+    setConfirmDialog({
+      open: true,
+      title: 'Удалить токен?',
+      description: `Вы уверены, что хотите удалить токен "${tokenCategories.find(cat => cat.value === token?.category)?.label || 'токен'}"? Это действие нельзя отменить.`,
+      variant: 'destructive',
+      onConfirm: async () => {
+        try {
+          const response = await fetch(`/api/tokens/${tokenId}`, {
+            method: 'DELETE',
+          });
+          const data = await response.json();
+          if (data.success) {
+            setTokens((tokens || []).filter(token => token.id !== tokenId));
+            toast({
+              title: 'Токен удален',
+              description: 'Токен успешно удален.',
+            });
+          } else {
+            throw new Error(data.error || 'Ошибка удаления токена');
+          }
+        } catch (error) {
+          console.error('Error deleting token:', error);
+          toast({
+            title: 'Ошибка',
+            description: error instanceof Error ? error.message : 'Ошибка удаления токена',
+            variant: 'destructive',
+          });
+        }
+      },
+    });
   };
 
   const handleAddWarehouse = async (e: React.FormEvent) => {
@@ -383,40 +501,77 @@ export default function SettingsPage() {
     }
   };
 
-  const handleDeleteWarehouse = async (warehouseId: number) => {
-    try {
-      const response = await fetch(`/api/warehouses/user/delete?warehouseId=${warehouseId}`, {
-        method: 'DELETE',
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setWarehouses((warehouses || []).filter(w => w.warehouseId !== warehouseId));
-        setError('');
-      } else {
-        setError(data.error || 'Ошибка удаления склада');
-      }
-    } catch (error) {
-      setError('Ошибка удаления склада');
-    }
+  const handleDeleteWarehouse = (warehouseId: number) => {
+    const warehouse = warehouses.find(w => w.warehouseId === warehouseId);
+    setConfirmDialog({
+      open: true,
+      title: 'Удалить склад?',
+      description: `Вы уверены, что хотите удалить склад "${warehouse?.warehouseName || `ID: ${warehouseId}`}"? Это действие нельзя отменить.`,
+      variant: 'destructive',
+      onConfirm: async () => {
+        try {
+          const response = await fetch(`/api/warehouses/user/delete?warehouseId=${warehouseId}`, {
+            method: 'DELETE',
+          });
+          const data = await response.json();
+          if (data.success) {
+            setWarehouses((warehouses || []).filter(w => w.warehouseId !== warehouseId));
+            toast({
+              title: 'Склад удален',
+              description: 'Склад успешно удален.',
+            });
+          } else {
+            throw new Error(data.error || 'Ошибка удаления склада');
+          }
+        } catch (error) {
+          toast({
+            title: 'Ошибка',
+            description: error instanceof Error ? error.message : 'Ошибка удаления склада',
+            variant: 'destructive',
+          });
+        }
+      },
+    });
   };
 
-  const handleSyncWarehouses = async () => {
+  const handleSyncWarehouses = async (forceRefresh = false) => {
     try {
       setIsSyncingWarehouses(true);
       setError('');
 
-      const response = await fetch('/api/warehouses/sync', {
+      const url = forceRefresh ? '/api/warehouses/sync?force=true' : '/api/warehouses/sync';
+      console.log('🔄 Запуск синхронизации складов...', { forceRefresh, url });
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
 
       const data = await response.json();
+      console.log('📊 Результат синхронизации:', data);
       if (data.success) {
         // Обновляем справочник складов
         await fetchWarehouseRefs();
         setError('');
-        alert(`Справочник складов обновлен! Добавлено ${data.data.total} складов`);
+        
+        // Показываем детальную статистику
+        const stats = data.data;
+        let message = `Справочник складов обновлен!\n\n`;
+        message += `📊 Статистика:\n`;
+        message += `• Всего складов: ${stats.total}\n`;
+        message += `• Новых добавлено: ${stats.newWarehouses || 0}\n`;
+        message += `• Обновлено: ${stats.updatedWarehouses || 0}\n`;
+        message += `• Без изменений: ${stats.unchangedWarehouses || 0}\n`;
+        
+        if (stats.usedFallback) {
+          message += `\n⚠️ Использованы fallback данные (API недоступен)`;
+        }
+        
+        if (!stats.hasChanges) {
+          message += `\n✅ Все склады актуальны, изменений не обнаружено`;
+        }
+        
+        alert(message);
       } else {
         setError(data.error || 'Ошибка синхронизации складов');
       }
@@ -493,14 +648,6 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="flex items-center space-x-3">
-                {/* Quick access to Telegram settings */}
-                <Link href="/settings/telegram">
-                  <Button variant="outline" size="sm" className="flex items-center gap-2">
-                    <MessageCircle className="w-4 h-4" />
-                    Настройки Telegram
-                  </Button>
-                </Link>
-                
                 {profile && (
                   <div className="flex items-center space-x-2">
                     <Badge 
@@ -626,31 +773,30 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-5">
-                  <TabsTrigger value="profile" className="flex items-center gap-2">
+                <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-2">
+                  <TabsTrigger value="general" className="flex items-center gap-2">
                     <User className="w-4 h-4" />
-                    Профиль
+                    <span className="hidden sm:inline">Общие</span>
                   </TabsTrigger>
-                  <TabsTrigger value="security" className="flex items-center gap-2">
-                    <Lock className="w-4 h-4" />
-                    Безопасность
-                  </TabsTrigger>
-                  <TabsTrigger value="tokens" className="flex items-center gap-2">
+                  <TabsTrigger value="api" className="flex items-center gap-2">
                     <Key className="w-4 h-4" />
-                    Токены
+                    <span className="hidden sm:inline">API</span>
                   </TabsTrigger>
-                  <TabsTrigger value="warehouses" className="flex items-center gap-2">
+                  <TabsTrigger value="slots" className="flex items-center gap-2">
                     <Warehouse className="w-4 h-4" />
-                    Склады и справочник
+                    <span className="hidden sm:inline">Слоты</span>
                   </TabsTrigger>
                   <TabsTrigger value="notifications" className="flex items-center gap-2">
-                    <MessageCircle className="w-4 h-4" />
-                    Telegram
+                    <Bell className="w-4 h-4" />
+                    <span className="hidden sm:inline">Уведомления</span>
                   </TabsTrigger>
                 </TabsList>
 
-                {/* Profile Tab */}
-                <TabsContent value="profile" className="space-y-6">
+                {/* General Tab (Profile + Security) */}
+                <TabsContent value="general" className="space-y-6">
+                  {/* Telegram Profile Component */}
+                  <UserProfileTelegram />
+                  
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
@@ -844,40 +990,51 @@ export default function SettingsPage() {
                           </select>
                         </div>
                         <div className="flex justify-end">
-                          <Button type="submit" disabled={isSaving}>
-                            {isSaving ? (
-                              <>
-                                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                                Сохранение...
-                              </>
-                            ) : (
-                              <>
-                                <Save className="w-4 h-4 mr-2" />
-                                Сохранить
-                              </>
-                            )}
-                          </Button>
+                          <SaveButton 
+                            type="submit" 
+                            isLoading={isSaving}
+                          >
+                            Сохранить профиль
+                          </SaveButton>
                         </div>
                       </form>
                     </CardContent>
                   </Card>
+                  {/* Security Section */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Lock className="w-5 h-5" />
+                        Безопасность
+                      </CardTitle>
+                      <CardDescription>
+                        Управление паролем и безопасностью аккаунта
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ChangePasswordForm 
+                        onSuccess={() => {
+                          setError('');
+                          toast({
+                            title: 'Пароль изменен',
+                            description: 'Ваш пароль был успешно изменен.',
+                          });
+                        }}
+                        onError={(error) => {
+                          setError(error);
+                          toast({
+                            title: 'Ошибка',
+                            description: error,
+                            variant: 'destructive',
+                          });
+                        }}
+                      />
+                    </CardContent>
+                  </Card>
                 </TabsContent>
 
-                {/* Security Tab */}
-                <TabsContent value="security" className="space-y-6">
-                  <ChangePasswordForm 
-                    onSuccess={() => {
-                      setError('');
-                      // Можно добавить дополнительную логику при успешном изменении пароля
-                    }}
-                    onError={(error) => {
-                      setError(error);
-                    }}
-                  />
-                </TabsContent>
-
-                {/* Tokens Tab */}
-                <TabsContent value="tokens" className="space-y-6">
+                {/* API Tab */}
+                <TabsContent value="api" className="space-y-6">
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
@@ -1001,8 +1158,202 @@ export default function SettingsPage() {
                   </Card>
                 </TabsContent>
 
-                {/* Warehouses Tab */}
-                <TabsContent value="warehouses" className="space-y-6">
+                {/* Slots Tab (Warehouses + Search Settings) */}
+                <TabsContent value="slots" className="space-y-6">
+                  {/* Search Settings Section */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Search className="w-5 h-5" />
+                        Настройки поиска слотов
+                      </CardTitle>
+                      <CardDescription>
+                        Технические параметры поиска слотов
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {isLoadingSearch ? (
+                        <div className="flex items-center justify-center py-8">
+                          <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {/* Основные настройки */}
+                          <div className="space-y-4">
+                            <h4 className="font-medium text-sm">Основные настройки</h4>
+                            <div className="space-y-2">
+                              <Label htmlFor="checkInterval">Интервал проверки (секунды)</Label>
+                              <Input
+                                id="checkInterval"
+                                type="number"
+                                min="10"
+                                max="60"
+                                value={searchSettings.checkInterval}
+                                onChange={(e) => setSearchSettings(prev => ({
+                                  ...prev,
+                                  checkInterval: parseInt(e.target.value) || 10
+                                }))}
+                              />
+                              <p className="text-xs text-gray-500">
+                                Минимум 10 секунд (6 запросов в минуту по правилам WB)
+                              </p>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="maxAttempts">Максимум попыток</Label>
+                              <Input
+                                id="maxAttempts"
+                                type="number"
+                                min="10"
+                                max="1000"
+                                value={searchSettings.maxAttempts}
+                                onChange={(e) => setSearchSettings(prev => ({
+                                  ...prev,
+                                  maxAttempts: parseInt(e.target.value) || 100
+                                }))}
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="apiRateLimit">Лимит API (запросов/минуту)</Label>
+                              <Input
+                                id="apiRateLimit"
+                                type="number"
+                                min="1"
+                                max="10"
+                                value={searchSettings.apiRateLimit}
+                                onChange={(e) => setSearchSettings(prev => ({
+                                  ...prev,
+                                  apiRateLimit: parseInt(e.target.value) || 6
+                                }))}
+                              />
+                            </div>
+
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                id="stopOnFirstFound"
+                                checked={searchSettings.stopOnFirstFound}
+                                onChange={(e) => setSearchSettings(prev => ({
+                                  ...prev,
+                                  stopOnFirstFound: e.target.checked
+                                }))}
+                                className="rounded border-gray-300"
+                              />
+                              <Label htmlFor="stopOnFirstFound" className="text-sm">
+                                Остановить поиск при первом найденном слоте
+                              </Label>
+                            </div>
+                          </div>
+
+                          {/* Политика повторов */}
+                          <div className="space-y-4">
+                            <h4 className="font-medium text-sm">Политика повторов</h4>
+                            <div className="space-y-2">
+                              <Label htmlFor="maxRetries">Максимум повторов</Label>
+                              <Input
+                                id="maxRetries"
+                                type="number"
+                                min="0"
+                                max="10"
+                                value={searchSettings.retryPolicy.maxRetries}
+                                onChange={(e) => setSearchSettings(prev => ({
+                                  ...prev,
+                                  retryPolicy: {
+                                    ...prev.retryPolicy,
+                                    maxRetries: parseInt(e.target.value) || 3
+                                  }
+                                }))}
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="backoffMs">Задержка между повторами (мс)</Label>
+                              <Input
+                                id="backoffMs"
+                                type="number"
+                                min="1000"
+                                max="60000"
+                                value={searchSettings.retryPolicy.backoffMs}
+                                onChange={(e) => setSearchSettings(prev => ({
+                                  ...prev,
+                                  retryPolicy: {
+                                    ...prev.retryPolicy,
+                                    backoffMs: parseInt(e.target.value) || 5000
+                                  }
+                                }))}
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="priority">Приоритет (0-10)</Label>
+                              <Input
+                                id="priority"
+                                type="number"
+                                min="0"
+                                max="10"
+                                value={searchSettings.priority}
+                                onChange={(e) => setSearchSettings(prev => ({
+                                  ...prev,
+                                  priority: parseInt(e.target.value) || 5
+                                }))}
+                              />
+                            </div>
+
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                id="searchEnabled"
+                                checked={searchSettings.enabled}
+                                onChange={(e) => setSearchSettings(prev => ({
+                                  ...prev,
+                                  enabled: e.target.checked
+                                }))}
+                                className="rounded border-gray-300"
+                              />
+                              <Label htmlFor="searchEnabled" className="text-sm">
+                                Поиск активен
+                              </Label>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex justify-end mt-6">
+                        <SaveButton
+                          isLoading={isSavingSearch}
+                          onClick={async () => {
+                            try {
+                              setIsSavingSearch(true);
+                              const response = await fetch('/api/settings/search', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(searchSettings),
+                              });
+                              const data = await response.json();
+                              if (data.success) {
+                                toast({
+                                  title: 'Настройки сохранены',
+                                  description: 'Настройки поиска успешно обновлены.',
+                                });
+                              } else {
+                                throw new Error(data.error || 'Ошибка сохранения');
+                              }
+                            } catch (error) {
+                              toast({
+                                title: 'Ошибка',
+                                description: error instanceof Error ? error.message : 'Ошибка сохранения настроек',
+                                variant: 'destructive',
+                              });
+                            } finally {
+                              setIsSavingSearch(false);
+                            }
+                          }}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Warehouses Section */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
@@ -1059,7 +1410,7 @@ export default function SettingsPage() {
                             </div>
                             <div className="flex items-center gap-2">
                               <Button
-                                onClick={handleSyncWarehouses}
+                                onClick={() => handleSyncWarehouses(false)}
                                 disabled={isSyncingWarehouses}
                                 variant="outline"
                                 size="sm"
@@ -1075,6 +1426,20 @@ export default function SettingsPage() {
                                     Обновить из WB API
                                   </>
                                 )}
+                              </Button>
+                              <Button
+                                onClick={() => {
+                                  if (confirm('⚠️ Принудительная очистка удалит ВСЕ склады и загрузит их заново. Продолжить?')) {
+                                    handleSyncWarehouses(true);
+                                  }
+                                }}
+                                disabled={isSyncingWarehouses}
+                                variant="destructive"
+                                size="sm"
+                                title="Принудительная очистка и перезагрузка всех складов"
+                              >
+                                <RefreshCw className="w-4 h-4 mr-2" />
+                                Принудительно
                               </Button>
                               <Link href="/warehouses">
                                 <Button variant="outline" size="sm">
@@ -1278,21 +1643,14 @@ export default function SettingsPage() {
                           <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 animate-in slide-in-from-top-2 duration-300">
                             <TelegramSettings compact={true} />
                             
-                            {/* Link to advanced Telegram settings */}
+                            {/* Расширенные настройки Telegram - показываются прямо здесь */}
                             <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <h4 className="font-medium text-gray-900 dark:text-white">Расширенные настройки</h4>
-                                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                                    Управление токеном бота, шаблонами уведомлений и админскими функциями
-                                  </p>
-                                </div>
-                                <Link href="/settings/telegram">
-                                  <Button variant="outline" size="sm">
-                                    <Settings className="w-4 h-4 mr-2" />
-                                    Открыть настройки
-                                  </Button>
-                                </Link>
+                              <div>
+                                <h4 className="font-medium text-gray-900 dark:text-white mb-2">Расширенные настройки</h4>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                  Управление токеном бота, шаблонами уведомлений и админскими функциями
+                                </p>
+                                <TelegramSettings showAdminSettings={true} compact={false} />
                               </div>
                             </div>
                           </div>
@@ -1348,6 +1706,18 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}
+        onConfirm={confirmDialog.onConfirm}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        variant={confirmDialog.variant}
+        confirmText="Удалить"
+        cancelText="Отмена"
+      />
     </DashboardLayout>
     </ProtectedRoute>
   );

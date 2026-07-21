@@ -1,52 +1,60 @@
 import { TaskScheduler } from '@/lib/scheduler';
 import { scanSlotsWorker, bookSlotWorker, notifyWorker, monitorWorker } from '@/lib/queue';
-import { AutoBookingWorker } from './auto-booking-worker';
+import { UnifiedAutoBookingWorker } from './unified-auto-booking-worker';
 import { SlotSearchWorker } from './slot-search-worker';
 import { createStopTaskWorker } from './stop-task-worker';
 import { createConnection } from '@/lib/queue';
+import { logger } from '@/lib/logging';
 
-console.log('Starting WB Slots workers...');
+logger.info('Starting WB Slots workers...');
 
 // Initialize scheduler
 const scheduler = TaskScheduler.getInstance();
 
 // Initialize workers
 const connection = createConnection();
-const autoBookingWorker = new AutoBookingWorker(connection);
+const unifiedAutoBookingWorker = new UnifiedAutoBookingWorker(connection);
 const slotSearchWorker = new SlotSearchWorker(connection);
 const stopTaskWorker = createStopTaskWorker();
 
 // Start scheduler
-scheduler.start().catch(console.error);
+scheduler.start().catch((error) => {
+  logger.error({ error: error instanceof Error ? error.message : 'Unknown error' }, 'Failed to start scheduler');
+});
 
 // Log worker status
-console.log('Workers started:');
-console.log('- Scan slots worker');
-console.log('- Book slot worker');
-console.log('- Notify worker');
-console.log('- Monitor worker');
-console.log('- Auto-booking worker');
-console.log('- Slot search worker');
-console.log('- Stop task worker');
-console.log('- Task scheduler');
+logger.info('Workers started:', {
+  workers: [
+    'Scan slots worker',
+    'Book slot worker',
+    'Notify worker',
+    'Monitor worker',
+    'Unified auto-booking worker',
+    'Slot search worker',
+    'Stop task worker',
+    'Task scheduler'
+  ]
+});
 
 // Keep the process alive
 process.on('SIGINT', async () => {
-  console.log('Shutting down workers...');
+  logger.info('Received SIGINT, shutting down workers...');
   await scheduler.stop();
-  await autoBookingWorker.close();
+  await unifiedAutoBookingWorker.close();
   await slotSearchWorker.close();
   await stopTaskWorker.close();
   await monitorWorker.close();
+  logger.info('Workers shut down successfully');
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('Shutting down workers...');
+  logger.info('Received SIGTERM, shutting down workers...');
   await scheduler.stop();
-  await autoBookingWorker.close();
+  await unifiedAutoBookingWorker.close();
   await slotSearchWorker.close();
   await stopTaskWorker.close();
   await monitorWorker.close();
+  logger.info('Workers shut down successfully');
   process.exit(0);
 });

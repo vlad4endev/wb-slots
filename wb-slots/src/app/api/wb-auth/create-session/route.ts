@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { WBSessionManager } from '@/lib/wb-session-manager';
+import { WBSessionManager } from '@/lib/session';
 import { z } from 'zod';
 
 const createSessionSchema = z.object({

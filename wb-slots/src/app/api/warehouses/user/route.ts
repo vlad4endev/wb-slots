@@ -2,25 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
-
-const warehouseSchema = z.object({
-  warehouseId: z.number(),
-  warehouseName: z.string(),
-  enabled: z.boolean().default(true),
-  boxAllowed: z.boolean().default(true),
-  monopalletAllowed: z.boolean().default(true),
-  supersafeAllowed: z.boolean().default(true),
-});
-
-const createWarehousesSchema = z.object({
-  warehouses: z.array(warehouseSchema).optional(),
-  warehouseId: z.number().optional(),
-  warehouseName: z.string().optional(),
-  enabled: z.boolean().optional(),
-  boxAllowed: z.boolean().optional(),
-  monopalletAllowed: z.boolean().optional(),
-  supersafeAllowed: z.boolean().optional(),
-});
+import { 
+  createWarehousesSchema, 
+  updateWarehouseSchema,
+  deleteWarehouseSchema,
+  parseWarehouseId,
+  normalizeWarehouseData,
+  normalizeWarehousesData
+} from '@/lib/validation/warehouse-validation';
 
 export async function GET(request: NextRequest) {
   try {
@@ -57,6 +46,15 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth(request);
     const body = await request.json();
+    
+    console.log('📥 Incoming warehouse data:', {
+      userId: user.id,
+      bodyType: typeof body,
+      bodyKeys: Object.keys(body),
+      warehouseIdType: body.warehouseId ? typeof body.warehouseId : 'undefined',
+      warehouseIdValue: body.warehouseId
+    });
+    
     const validatedData = createWarehousesSchema.parse(body);
 
     if (validatedData.warehouses) {
@@ -114,8 +112,18 @@ export async function POST(request: NextRequest) {
     }
     
     if (error instanceof z.ZodError) {
+      console.error('Validation error details:', error.errors);
       return NextResponse.json(
-        { success: false, error: 'Неверные данные', details: error.errors },
+        { 
+          success: false, 
+          error: 'Неверные данные', 
+          details: error.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message,
+            received: err.received,
+            expected: err.expected
+          }))
+        },
         { status: 400 }
       );
     }
@@ -131,23 +139,22 @@ export async function PATCH(request: NextRequest) {
   try {
     const user = await requireAuth(request);
     const body = await request.json();
-    const { warehouseId, enabled } = body;
-
-    if (!warehouseId || typeof enabled !== 'boolean') {
-      return NextResponse.json(
-        { success: false, error: 'Неверные данные' },
-        { status: 400 }
-      );
-    }
+    
+    console.log('📥 PATCH warehouse data:', {
+      userId: user.id,
+      body
+    });
+    
+    const validatedData = updateWarehouseSchema.parse(body);
 
     // Обновляем статус склада
     const warehouse = await prisma.warehousePref.updateMany({
       where: {
         userId: user.id,
-        warehouseId: parseInt(warehouseId),
+        warehouseId: validatedData.warehouseId,
       },
       data: {
-        enabled: enabled,
+        enabled: validatedData.enabled,
       },
     });
 
@@ -160,7 +167,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Склад ${enabled ? 'включен' : 'отключен'}`,
+      message: `Склад ${validatedData.enabled ? 'включен' : 'отключен'}`,
     });
   } catch (error) {
     console.error('Toggle warehouse error:', error);
@@ -169,6 +176,88 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
         { status: 401 }
+      );
+    }
+    
+    if (error instanceof z.ZodError) {
+      console.error('Validation error details:', error.errors);
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Неверные данные', 
+          details: error.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message,
+            received: err.received,
+            expected: err.expected
+          }))
+        },
+        { status: 400 }
+      );
+    }
+    
+    return NextResponse.json(
+      { success: false, error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const user = await requireAuth(request);
+    const body = await request.json();
+    
+    console.log('📥 DELETE warehouse data:', {
+      userId: user.id,
+      body
+    });
+    
+    const validatedData = deleteWarehouseSchema.parse(body);
+
+    // Удаляем склад
+    const warehouse = await prisma.warehousePref.deleteMany({
+      where: {
+        userId: user.id,
+        warehouseId: validatedData.warehouseId,
+      },
+    });
+
+    if (warehouse.count === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Склад не найден' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Склад удален успешно',
+    });
+  } catch (error) {
+    console.error('Delete warehouse error:', error);
+    
+    if (error instanceof Error && error.name === 'AuthError') {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    
+    if (error instanceof z.ZodError) {
+      console.error('Validation error details:', error.errors);
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Неверные данные', 
+          details: error.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message,
+            received: err.received,
+            expected: err.expected
+          }))
+        },
+        { status: 400 }
       );
     }
     

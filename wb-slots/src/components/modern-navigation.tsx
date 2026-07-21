@@ -63,12 +63,24 @@ const navigationItems = [
     icon: BarChart3,
     description: 'Статистика и отчеты'
   },
-          {
-            name: 'Настройки',
-            href: '/settings',
-            icon: Settings,
-            description: 'Конфигурация системы и Telegram'
-          }
+  {
+    name: 'Мониторинг',
+    href: '/monitoring',
+    icon: Activity,
+    description: 'Производительность системы'
+  },
+  {
+    name: 'Алерты',
+    href: '/alerts',
+    icon: Shield,
+    description: 'Уведомления и алерты'
+  },
+  {
+    name: 'Настройки',
+    href: '/settings',
+    icon: Settings,
+    description: 'Конфигурация системы и Telegram'
+  }
 ];
 
 const quickActions = [

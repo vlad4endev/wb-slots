@@ -1,5 +1,4 @@
-import { getTelegramService } from '../notifications/telegram-service';
-import { NotificationType } from '../notifications/telegram-config';
+import { TelegramService } from '../services/telegram-service';
 
 export interface RetryConfig {
   maxRetries: number;
@@ -46,6 +45,20 @@ export class RetryService {
     return RetryService.instance;
   }
 
+  // Критические ошибки, при которых retry бессмысленен
+  private readonly CRITICAL_NON_RETRYABLE_ERRORS = [
+    'SESSION_EXPIRED',
+    'UNAUTHORIZED',
+    'FORBIDDEN',
+    'AUTHENTICATION_REQUIRED',
+    'SLOT_ALREADY_BOOKED',
+    'SLOT_NOT_AVAILABLE',
+    'INVALID_SLOT',
+    'BOOKING_CONFLICT',
+    'BROWSER_CRASHED',
+    'ELEMENT_NOT_FOUND', // Если селектор не найден после нескольких попыток
+  ];
+
   private initializeDefaultConfigs(): void {
     // Конфигурация для бронирования слотов
     this.configs.set('booking', {
@@ -61,6 +74,8 @@ export class RetryService {
         'TEMPORARY_ERROR',
         'CAPTCHA_REQUIRED',
         'SERVER_ERROR',
+        'PAGE_LOAD_ERROR',
+        'NAVIGATION_TIMEOUT',
       ],
     });
 
@@ -150,9 +165,38 @@ export class RetryService {
         lastError = error instanceof Error ? error.message : String(error);
         const errorCode = this.extractErrorCode(error);
 
-        console.warn(`❌ Attempt ${attempts} failed: ${lastError}`);
+        console.warn(`❌ Attempt ${attempts} failed: ${lastError} [${errorCode}]`);
 
-        // Проверяем, стоит ли повторить попытку
+        // КРИТИЧНО: Проверяем на не-retryable ошибки (сессия истекла, слот занят, браузер упал)
+        if (this.CRITICAL_NON_RETRYABLE_ERRORS.includes(errorCode)) {
+          const totalTime = Date.now() - startTime;
+          console.error(`🛑 CRITICAL ERROR - не retry: ${errorCode}. Остановка после ${totalTime}ms`);
+
+          // Специальная обработка SESSION_EXPIRED
+          if (errorCode === 'SESSION_EXPIRED' && context?.userId) {
+            console.error(`🔒 Session expired for user ${context.userId}. Требуется повторная аутентификация.`);
+          }
+
+          // Специальная обработка SLOT_ALREADY_BOOKED
+          if (errorCode === 'SLOT_ALREADY_BOOKED' || errorCode === 'BOOKING_CONFLICT') {
+            console.warn(`⚠️ Слот уже забронирован. Retry бессмысленен.`);
+          }
+
+          // Отправляем уведомление о критической ошибке
+          if (context) {
+            await this.sendCriticalErrorNotification(context, lastError, errorCode, attempts);
+          }
+
+          return {
+            success: false,
+            error: lastError,
+            attempts,
+            totalTime,
+            lastError,
+          };
+        }
+
+        // Проверяем, стоит ли повторить попытку (для обычных ошибок)
         if (attempt === config.maxRetries || !this.shouldRetry(errorCode, config.retryableErrors)) {
           const totalTime = Date.now() - startTime;
           console.error(`💥 All retry attempts exhausted after ${totalTime}ms`);
@@ -241,29 +285,13 @@ export class RetryService {
     totalAttempts: number
   ): Promise<void> {
     try {
-      if (!getTelegramService().isInitialized()) {
-        return;
-      }
-
-      const user = getTelegramService().getUser(context.userId);
-      if (!user || !user.isActive) {
-        return;
-      }
-
-      await getTelegramService().sendNotification(
+      const telegramService = new TelegramService();
+      
+      const message = `🔄 Повторная попытка бронирования\n\n📦 Поставка: ${context.supplyName}\n🆔 ID: ${context.supplyId}\n🏢 Склад: ${context.warehouseName}\n📅 Дата: ${context.slotDate}\n⏰ Время: ${context.slotTime}\n\n🔄 Попытка: ${currentAttempt}/${totalAttempts}\n🚫 Ошибка: ${error}`;
+      
+      await telegramService.sendNotification(
         context.userId,
-        NotificationType.BOOKING_ERROR,
-        {
-          supplyName: context.supplyName,
-          supplyId: context.supplyId,
-          warehouseName: context.warehouseName,
-          slotDate: context.slotDate,
-          slotTime: context.slotTime,
-          coefficient: context.coefficient.toString(),
-          errorMessage: `Повторная попытка ${currentAttempt}/${totalAttempts}: ${error}`,
-          executionTime: '0',
-          taskName: context.taskName,
-        }
+        message
       );
     } catch (error) {
       console.error('❌ Error sending retry notification:', error);
@@ -279,32 +307,53 @@ export class RetryService {
     attempts: number
   ): Promise<void> {
     try {
-      if (!getTelegramService().isInitialized()) {
-        return;
-      }
-
-      const user = getTelegramService().getUser(context.userId);
-      if (!user || !user.isActive) {
-        return;
-      }
-
-      await getTelegramService().sendNotification(
+      const telegramService = new TelegramService();
+      
+      const message = `❌ Все попытки бронирования исчерпаны\n\n📦 Поставка: ${context.supplyName}\n🆔 ID: ${context.supplyId}\n🏢 Склад: ${context.warehouseName}\n📅 Дата: ${context.slotDate}\n⏰ Время: ${context.slotTime}\n\n🔄 Попыток: ${attempts}\n🚫 Ошибка: ${error}`;
+      
+      await telegramService.sendNotification(
         context.userId,
-        NotificationType.BOOKING_ERROR,
-        {
-          supplyName: context.supplyName,
-          supplyId: context.supplyId,
-          warehouseName: context.warehouseName,
-          slotDate: context.slotDate,
-          slotTime: context.slotTime,
-          coefficient: context.coefficient.toString(),
-          errorMessage: `Все попытки исчерпаны (${attempts} попыток): ${error}`,
-          executionTime: '0',
-          taskName: context.taskName,
-        }
+        message
       );
     } catch (error) {
       console.error('❌ Error sending retry failure notification:', error);
+    }
+  }
+
+  /**
+   * Отправляет уведомление о критической ошибке (retry невозможен)
+   */
+  private async sendCriticalErrorNotification(
+    context: RetryContext,
+    error: string,
+    errorCode: string,
+    attempts: number
+  ): Promise<void> {
+    try {
+      const telegramService = new TelegramService();
+      
+      let emoji = '🛑';
+      let actionText = '';
+      
+      if (errorCode === 'SESSION_EXPIRED') {
+        emoji = '🔒';
+        actionText = '\n\n⚠️ Требуется повторная аутентификация в Wildberries';
+      } else if (errorCode === 'SLOT_ALREADY_BOOKED' || errorCode === 'BOOKING_CONFLICT') {
+        emoji = '⏰';
+        actionText = '\n\n💡 Слот уже забронирован кем-то другим. Попробуйте другой слот.';
+      } else if (errorCode === 'BROWSER_CRASHED') {
+        emoji = '💥';
+        actionText = '\n\n🔧 Браузер упал. Попробуйте перезапустить задачу.';
+      }
+      
+      const message = `${emoji} КРИТИЧЕСКАЯ ОШИБКА (retry невозможен)\n\n📦 Поставка: ${context.supplyName}\n🆔 ID: ${context.supplyId}\n🏢 Склад: ${context.warehouseName}\n📅 Дата: ${context.slotDate}\n⏰ Время: ${context.slotTime}\n\n🚫 Код ошибки: ${errorCode}\n📝 Описание: ${error}\n🔄 Попытка: ${attempts}${actionText}`;
+      
+      await telegramService.sendNotification(
+        context.userId,
+        message
+      );
+    } catch (error) {
+      console.error('❌ Error sending critical error notification:', error);
     }
   }
 

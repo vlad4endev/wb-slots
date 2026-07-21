@@ -46,6 +46,7 @@ interface Task {
     };
   };
   priority: number;
+  successCount: number;
   createdAt: string;
   updatedAt: string;
   runs: Array<{
@@ -198,6 +199,8 @@ export default function TaskDetailPage() {
         return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300';
       case 'BOOKING':
         return 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300';
+      case 'COMPLETED':
+        return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300';
     }
@@ -217,6 +220,8 @@ export default function TaskDetailPage() {
         return 'Остановлена';
       case 'BOOKING':
         return 'Бронирование';
+      case 'COMPLETED':
+        return 'Успешно завершена';
       default:
         return status;
     }
@@ -287,6 +292,12 @@ export default function TaskDetailPage() {
                   <div>
                     <label className="text-sm font-medium text-gray-500">Приоритет</label>
                     <div className="mt-1 text-sm">{task.priority}</div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Успешные поиски</label>
+                    <div className="mt-1 text-sm font-semibold text-green-600 dark:text-green-400">
+                      {task.successCount || 0}
+                    </div>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Активна</label>
@@ -409,6 +420,7 @@ export default function TaskDetailPage() {
               autoBook={task.autoBook}
               autoBookSupplyId={task.autoBookSupplyId}
               filters={task.filters || {}}
+              taskStatus={task.status}
             />
           </div>
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { getTelegramService } from '@/lib/notifications/telegram-service';
+import { getTelegramService } from '@/lib/services/telegram-service';
 import { NotificationType } from '@/lib/notifications/telegram-config';
 
 export async function POST(request: NextRequest) {

@@ -1,4 +1,6 @@
 import crypto from 'crypto';
+import { requireEnv } from './env';
+import { logger } from './logging';
 
 const ALGORITHM = 'aes-256-cbc';
 const IV_LENGTH = 16;
@@ -11,7 +13,12 @@ export class EncryptionError extends Error {
 }
 
 function getEncryptionKey(): Buffer {
-  const key = process.env.ENCRYPTION_KEY || 'dGVzdC1lbmNyeXB0aW9uLWtleS0zMi1ieXRlcy1sb25n';
+  // В production требуется обязательное наличие ENCRYPTION_KEY
+  // В development используется fallback значение с предупреждением
+  const key = requireEnv(
+    'ENCRYPTION_KEY',
+    'dGVzdC1lbmNyeXB0aW9uLWtleS0zMi1ieXRlcy1sb25n' // base64 тестовый ключ только для development
+  );
   
   try {
     const keyBuffer = Buffer.from(key, 'base64');
@@ -48,28 +55,40 @@ export function encrypt(text: string): string {
   }
 }
 
-export function decrypt(encryptedData: string): string {
+export function decrypt(encryptedData: string | null | undefined): string {
   try {
-    console.log('🔓 Начинаем расшифровку токена...');
-    console.log('📏 Длина зашифрованных данных:', encryptedData.length);
+    // Проверяем на null/undefined
+    if (!encryptedData) {
+      if (process.env.NODE_ENV === 'development') {
+        logger.debug('Decrypt received null/undefined, returning empty string');
+      }
+      return '';
+    }
+
+    // Логируем начало расшифровки только в development
+    if (process.env.NODE_ENV === 'development') {
+      logger.debug({ dataLength: encryptedData.length }, 'Starting token decryption');
+    }
     
     // Проверяем, не является ли это уже расшифрованным токеном
     // Если токен содержит только обычные символы и не является base64, 
     // то это скорее всего уже расшифрованный токен
     if (encryptedData.length < 50 && !encryptedData.includes('=') && !encryptedData.includes('/') && !encryptedData.includes('+')) {
-      console.log('⚠️ Токен выглядит как plain text, возвращаем как есть');
+      if (process.env.NODE_ENV === 'development') {
+        logger.debug('Token appears to be plain text, returning as-is');
+      }
       return encryptedData;
     }
     
     const key = getEncryptionKey();
-    console.log('🔑 Ключ шифрования получен, длина:', key.length);
     
     const combined = Buffer.from(encryptedData, 'base64');
-    console.log('📦 Данные декодированы из base64, длина буфера:', combined.length);
     
     // Проверяем минимальную длину
     if (combined.length < IV_LENGTH) {
-      console.log('⚠️ Данные слишком короткие для зашифрованного токена, возвращаем как plain text');
+      if (process.env.NODE_ENV === 'development') {
+        logger.debug({ combinedLength: combined.length }, 'Data too short for encrypted token, returning as plain text');
+      }
       return encryptedData;
     }
     
@@ -77,27 +96,31 @@ export function decrypt(encryptedData: string): string {
     const iv = combined.subarray(0, IV_LENGTH);
     const encrypted = combined.subarray(IV_LENGTH);
     
-    console.log('🔐 IV длина:', iv.length, 'Зашифрованные данные длина:', encrypted.length);
-    
     const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
     
     let decrypted = decipher.update(encrypted, undefined, 'utf8');
     decrypted += decipher.final('utf8');
     
-    console.log('✅ Токен успешно расшифрован, длина:', decrypted.length);
+    if (process.env.NODE_ENV === 'development') {
+      logger.debug({ decryptedLength: decrypted.length }, 'Token decrypted successfully');
+    }
+    
     return decrypted;
   } catch (error) {
-    console.error('❌ Ошибка расшифровки токена:', error);
-    console.error('📊 Детали ошибки:', {
+    // Ошибки расшифровки логируем всегда как ERROR
+    logger.error({
+      error: error instanceof Error ? error.message : 'Unknown error',
       errorType: error instanceof Error ? error.constructor.name : typeof error,
-      message: error instanceof Error ? error.message : String(error),
       encryptedDataLength: encryptedData?.length || 0,
-      encryptedDataPreview: encryptedData?.substring(0, 50) + '...' || 'undefined'
-    });
+      encryptedDataPreview: encryptedData?.substring(0, 50) || 'undefined'
+    }, 'Token decryption failed');
     
     // Если расшифровка не удалась, возможно это plain text токен
-    console.log('⚠️ Попытка вернуть как plain text токен');
-    return encryptedData;
+    // Логируем предупреждение и возвращаем как есть
+    if (process.env.NODE_ENV === 'development') {
+      logger.debug('Attempting to return as plain text token');
+    }
+    return encryptedData || '';
   }
 }
 

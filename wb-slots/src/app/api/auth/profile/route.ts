@@ -9,6 +9,63 @@ const updateProfileSchema = z.object({
   timezone: z.string().default('Europe/Moscow'),
 });
 
+export async function GET(request: NextRequest) {
+  try {
+    const user = await getCurrentUser(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Получаем настройки Telegram пользователя
+    const telegramSettings = await prisma.userSettings.findFirst({
+      where: {
+        userId: user.id,
+        category: 'NOTIFICATION',
+      },
+    });
+
+    let telegramUser = null;
+    if (telegramSettings) {
+      const settings = telegramSettings.settings as any;
+      if (settings.telegram?.userInfo) {
+        telegramUser = {
+          id: settings.telegram.chatId,
+          firstName: settings.telegram.userInfo.firstName,
+          lastName: settings.telegram.userInfo.lastName,
+          username: settings.telegram.userInfo.username,
+          languageCode: settings.telegram.userInfo.languageCode,
+          isPremium: settings.telegram.userInfo.isPremium,
+        };
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          phone: user.phone,
+          name: user.name,
+          timezone: user.timezone,
+          role: user.role,
+          createdAt: user.createdAt,
+          telegramUser,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Error getting profile:', error);
+    return NextResponse.json(
+      { success: false, error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PUT(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);

@@ -5,14 +5,27 @@ import { WBClientFactory } from './wb-client';
 import { decrypt } from './encryption';
 import { LogLevel, RunStatus } from '@prisma/client';
 import { slotSearchService } from './services/slot-search-service';
-import { autoBookingService } from './services/auto-booking-service';
-import { getTelegramService } from './services/telegram-service';
+import { refactoredAutoBookingService } from './services/refactored/auto-booking-service';
+import { telegramService } from './services/telegram-service';
 
 // Redis connection
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
   maxRetriesPerRequest: null,
   enableReadyCheck: false,
 });
+
+// Export connection for use in workers and API
+export function createConnection() {
+  return {
+    host: process.env.REDIS_HOST || 'localhost',
+    port: parseInt(process.env.REDIS_PORT || '6379'),
+    password: process.env.REDIS_PASSWORD,
+    db: parseInt(process.env.REDIS_DB || '0'),
+  };
+}
+
+// Export redis instance for direct use
+export { redis };
 
 // Queue names
 export const QUEUE_NAMES = {
@@ -43,7 +56,7 @@ export interface BookSlotJobData {
 
 export interface NotifyJobData {
   userId: string;
-  type: 'slot_found' | 'slot_booked' | 'task_failed' | 'task_completed';
+  type: 'slot_found' | 'slot_booked' | 'task_failed' | 'task_completed' | 'token_expired' | 'token_unauthorized' | 'api_error';
   data: any;
 }
 
@@ -356,7 +369,7 @@ async function logRunMessage(
       runId,
       level,
       message,
-      meta: meta ? JSON.stringify(meta) : undefined,
+      meta: meta ? safeJsonStringify(meta) : undefined,
     },
   });
 }
@@ -369,24 +382,151 @@ async function sendNotification(
 ): Promise<void> {
   const config = channel.config as any;
 
-  switch (channel.type) {
-    case 'EMAIL':
-      // TODO: Implement email notification
-      console.log(`Email notification to ${config.email}: ${type}`, data);
+  // Форматируем сообщение в зависимости от типа
+  let message = '';
+  
+  switch (type) {
+    case 'token_unauthorized':
+    case 'token_expired':
+      message = `${data.title || '🔐 Требуется обновление токена'}\n\n`;
+      message += `${data.message || 'Ваш токен Wildberries истёк или недействителен.'}\n\n`;
+      if (data.detail) {
+        message += `Детали: ${data.detail}\n\n`;
+      }
+      if (data.action) {
+        message += `📋 Действие: ${data.action}\n`;
+      }
+      if (data.link) {
+        message += `🔗 Ссылка: ${data.link}`;
+      }
       break;
     
-    case 'TELEGRAM':
-      // TODO: Implement Telegram notification
-      console.log(`Telegram notification to ${config.chatId}: ${type}`, data);
+    case 'api_error':
+      message = `${data.title || '⚠️ Ошибка API Wildberries'}\n\n`;
+      message += `${data.message || 'Произошла ошибка при работе с API.'}\n\n`;
+      if (data.statusCode) {
+        message += `Код ошибки: ${data.statusCode}\n`;
+      }
+      if (data.detail) {
+        message += `Детали: ${data.detail}`;
+      }
       break;
     
-    case 'WEBHOOK':
-      // TODO: Implement webhook notification
-      console.log(`Webhook notification to ${config.url}: ${type}`, data);
+    case 'task_completed':
+      message = `${data.title || '✅ Поиск слотов завершён'}\n\n`;
+      message += `Найдено слотов: ${data.foundSlots || 0}\n`;
+      message += `Выполнено поисков: ${data.totalSearches || 0}\n`;
+      if (data.searchTime) {
+        const minutes = Math.floor(data.searchTime / 60000);
+        message += `Время поиска: ${minutes} мин.`;
+      }
+      break;
+    
+    case 'task_failed':
+      message = `${data.title || '❌ Задача завершилась с ошибкой'}\n\n`;
+      message += `${data.message || 'Произошла ошибка при выполнении задачи.'}\n\n`;
+      if (data.reason) {
+        message += `Причина: ${data.reason}`;
+      }
+      break;
+    
+    case 'slot_found':
+      message = `${data.title || '🎯 Найдены подходящие слоты!'}\n\n`;
+      message += `${data.message || `Обнаружено ${data.slotsCount || 0} слотов`}\n\n`;
+      
+      if (data.slots && Array.isArray(data.slots)) {
+        // Показываем максимум 5 слотов в уведомлении
+        const slotsToShow = data.slots.slice(0, 5);
+        slotsToShow.forEach((slot: any, index: number) => {
+          message += `📍 Слот ${index + 1}:\n`;
+          message += `   🏪 Склад: ${slot.warehouseName || 'Неизвестно'}\n`;
+          message += `   📅 Дата: ${slot.date || 'Неизвестно'}`;
+          if (slot.timeSlot) {
+            message += ` (${slot.timeSlot})`;
+          }
+          message += `\n   💰 Коэффициент: ${slot.coefficient || 0}\n`;
+          message += `   📦 Типы коробок: ${slot.boxTypes?.join(', ') || 'Неизвестно'}\n\n`;
+        });
+        
+        if (data.slots.length > 5) {
+          message += `... и ещё ${data.slots.length - 5} слотов\n\n`;
+        }
+      } else if (data.warehouseName) {
+        // Обратная совместимость - старый формат с одним слотом
+        message += `Склад: ${data.warehouseName || 'Неизвестно'}\n`;
+        message += `Дата: ${data.date || 'Неизвестно'}\n`;
+        message += `Коэффициент: ${data.coefficient || 0}\n\n`;
+      }
+      
+      message += `🔗 Перейдите в панель управления для просмотра деталей.`;
+      break;
+    
+    case 'slot_booked':
+      message = `✅ Слот забронирован!\n\n`;
+      message += `Склад: ${data.warehouseName || 'Неизвестно'}\n`;
+      message += `Дата: ${data.date || 'Неизвестно'}`;
       break;
     
     default:
-      console.log(`Unknown notification type: ${channel.type}`);
+      message = data.message || JSON.stringify(data);
+  }
+
+  switch (channel.type) {
+    case 'EMAIL':
+      // TODO: Implement email notification
+      console.log(`Email notification to ${config.email}: ${type}`, message);
+      break;
+    
+    case 'TELEGRAM':
+      try {
+        const chatId = config.chatId || config.telegram_chat_id;
+        if (!chatId) {
+          console.warn('Telegram chatId not found in channel config');
+          break;
+        }
+        
+        // Используем telegramService для отправки
+        const userId = channel.userId;
+        if (userId) {
+          await telegramService.sendNotification(userId, message);
+          console.log(`Telegram notification sent to user ${userId}`);
+        } else {
+          console.log(`Telegram notification (no userId): ${type}`, message);
+        }
+      } catch (error) {
+        console.error('Failed to send Telegram notification:', error);
+      }
+      break;
+    
+    case 'WEBHOOK':
+      try {
+        const webhookUrl = config.url || config.webhook_url;
+        if (!webhookUrl) {
+          console.warn('Webhook URL not found in channel config');
+          break;
+        }
+        
+        await fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            type,
+            data,
+            message,
+            timestamp: new Date().toISOString(),
+          }),
+        });
+        
+        console.log(`Webhook notification sent to ${webhookUrl}`);
+      } catch (error) {
+        console.error('Failed to send webhook notification:', error);
+      }
+      break;
+    
+    default:
+      console.log(`Unknown notification channel type: ${channel.type}`);
   }
 }
 

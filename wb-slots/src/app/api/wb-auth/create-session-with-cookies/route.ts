@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { WBSessionManager } from '@/lib/wb-session-manager';
+import { WBSessionManager } from '@/lib/session';
 import { encrypt } from '@/lib/encryption';
 
 export async function POST(request: NextRequest) {

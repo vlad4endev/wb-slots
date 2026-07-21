@@ -14,9 +14,21 @@ import {
   FiArrowLeft as ArrowLeft,
   FiSearch as Search,
   FiX as X,
-  FiCheck as Check
+  FiCheck as Check,
+  FiInfo as Info,
+  FiAlertTriangle as AlertTriangle
 } from 'react-icons/fi';
 import Link from 'next/link';
+import WarehouseSelector from '@/components/shared/warehouse-selector';
+import DatePresets from '@/components/shared/date-presets';
+import { useAutoBookingCheck } from '@/hooks/use-session-check';
+import { 
+  validateTaskForm, 
+  saveFormSettings, 
+  loadFormSettings,
+  formatTaskDataForAPI,
+  type TaskFormData 
+} from '@/lib/utils/task-form-utils';
 
 interface Warehouse {
   id: string;
@@ -49,18 +61,19 @@ export default function NewTaskPage() {
   const [error, setError] = useState('');
   const [testResult, setTestResult] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<TaskFormData>({
     name: '',
     description: '',
     autoBook: false,
-    autoBookSupplyId: '', // Номер приемки для автобронирования
+    autoBookSupplyId: '',
+    preorderID: '',
     filters: {
-      coefficientMin: 0, // Минимум коэффициента
-      coefficientMax: 20, // Максимум коэффициента
+      coefficientMin: 0,
+      coefficientMax: 20,
       warehouseIds: [] as number[],
-      boxTypeIds: [2, 5] as number[], // Типы поставки: 2 - Короба, 5 - Монопаллеты, 6 - Суперсейф
+      boxTypeIds: [2, 5] as number[],
       dates: {
-        from: new Date().toISOString().slice(0, 16), // Формат для datetime-local
+        from: new Date().toISOString().slice(0, 16),
         to: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
       },
     },
@@ -68,12 +81,31 @@ export default function NewTaskPage() {
       maxRetries: 3,
       backoffMs: 5000,
     },
+    priority: 4, // Максимальный приоритет по умолчанию
   });
+  
+  const [manualSupplyInput, setManualSupplyInput] = useState('');
+  const [useManualSupply, setUseManualSupply] = useState(true); // По умолчанию ручной ввод
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  
+  // Проверка сессии для автобронирования
+  const { canAutoBook, isCheckingSession, sessionError, refreshSession } = useAutoBookingCheck();
 
   useEffect(() => {
     fetchWarehouses();
     fetchWarehouseReferences();
     fetchCurrentUser();
+    
+    // Загружаем сохраненные настройки
+    const savedSettings = loadFormSettings();
+    if (savedSettings) {
+      setFormData(prev => ({
+        ...prev,
+        ...(savedSettings.filters && { filters: { ...prev.filters, ...savedSettings.filters } }),
+        ...(savedSettings.retryPolicy && { retryPolicy: savedSettings.retryPolicy }),
+        ...(savedSettings.priority !== undefined && { priority: savedSettings.priority }),
+      }));
+    }
   }, []);
 
   const fetchCurrentUser = async () => {
@@ -131,27 +163,29 @@ export default function NewTaskPage() {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    setValidationErrors([]);
 
     try {
-      // Добавляем значения по умолчанию для скрытых полей
-      const taskData = {
-        ...formData,
-        enabled: true,
-        scheduleCron: '', // Пустое - только ручной запуск
-        priority: 5,
-        filters: {
-          ...formData.filters,
-          allowUnload: true,
-          dates: {
-            from: formData.filters.dates?.from ? new Date(formData.filters.dates.from).toISOString() : new Date().toISOString(),
-            to: formData.filters.dates?.to ? new Date(formData.filters.dates.to).toISOString() : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          },
-        },
-        retryPolicy: {
-          maxRetries: 3,
-          backoffMs: 5000,
-        },
-      };
+      // Валидация формы
+      const validation = validateTaskForm(formData);
+      if (!validation.isValid) {
+        setValidationErrors(validation.errors);
+        setIsLoading(false);
+        return;
+      }
+
+      // Проверка WB сессии если включено автобронирование
+      if (formData.autoBook && !canAutoBook) {
+        setError('Нет активной сессии Wildberries. Авторизуйтесь через WB для автобронирования (перейдите в WB Auth)');
+        setIsLoading(false);
+        return;
+      }
+
+      // Сохраняем настройки формы
+      saveFormSettings(formData);
+
+      // Форматируем данные для API
+      const taskData = formatTaskDataForAPI(formData);
 
       const response = await fetch('/api/tasks', {
         method: 'POST',
@@ -448,30 +482,56 @@ export default function NewTaskPage() {
               </div>
 
               <div className="space-y-4">
+                {/* Проверка WB сессии для автобронирования */}
+                {!canAutoBook && (
+                  <Alert className="bg-orange-50 border-orange-200 text-orange-800 dark:bg-orange-900/20 dark:border-orange-800 dark:text-orange-300">
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      Нет активной сессии Wildberries. Перейдите в <button 
+                        type="button"
+                        onClick={() => window.location.href = '/wb-auth'} 
+                        className="underline font-semibold"
+                      >
+                        WB Auth
+                      </button> для авторизации и автобронирования
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
                 <label className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     name="autoBook"
                     checked={formData.autoBook}
-                    onChange={handleChange}
-                    className="rounded border-gray-300"
+                    onChange={(e) => {
+                      if (e.target.checked && !canAutoBook) {
+                        setError('Нет активной сессии Wildberries. Авторизуйтесь через WB для автобронирования');
+                        return;
+                      }
+                      handleChange(e);
+                    }}
+                    disabled={!canAutoBook}
+                    className="rounded border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
-                  <span className="text-sm">Автобронирование слотов</span>
+                  <span className="text-sm">
+                    Автобронирование слотов
+                    {!canAutoBook && <span className="text-xs text-orange-600 ml-2">(требуется WB сессия)</span>}
+                  </span>
                 </label>
 
                 {formData.autoBook && (
                   <div className="space-y-2">
-                    <Label htmlFor="autoBookSupplyId">Номер приемки для бронирования *</Label>
+                    <Label htmlFor="autoBookSupplyId">Номер поставки для автобронирования *</Label>
                     <Input
                       id="autoBookSupplyId"
                       name="autoBookSupplyId"
                       value={formData.autoBookSupplyId}
                       onChange={handleChange}
-                      placeholder="Введите номер приемки"
+                      placeholder="Введите номер поставки"
                       required={formData.autoBook}
                     />
                     <p className="text-xs text-gray-500">
-                      Номер приемки, по которому будет происходить автобронирование
+                      Введите номер поставки, который будет использоваться для автоматического бронирования слотов
                     </p>
                   </div>
                 )}
@@ -484,35 +544,18 @@ export default function NewTaskPage() {
             <CardHeader>
               <CardTitle>Период поиска</CardTitle>
               <CardDescription>
-                Временной диапазон для поиска слотов
+                Выберите временной диапазон для поиска слотов
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="dates.from">Дата начала</Label>
-                  <Input
-                    id="dates.from"
-                    name="filters.dates.from"
-                    type="datetime-local"
-                    value={formData.filters.dates?.from || ''}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="dates.to">Дата окончания</Label>
-                  <Input
-                    id="dates.to"
-                    name="filters.dates.to"
-                    type="datetime-local"
-                    value={formData.filters.dates?.to || ''}
-                    onChange={handleChange}
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-gray-500">
-                Если не указано, поиск будет проводиться в течение 30 дней
-              </p>
+              <DatePresets
+                dateRange={formData.filters.dates}
+                onDateRangeChange={(dates) => setFormData(prev => ({
+                  ...prev,
+                  filters: { ...prev.filters, dates }
+                }))}
+                showTimeInput={true}
+              />
             </CardContent>
           </Card>
 
@@ -527,160 +570,14 @@ export default function NewTaskPage() {
             <CardContent className="space-y-6">
               {/* Warehouses */}
               <div className="space-y-4">
-                <Label>Склад *</Label>
-                
-                {/* Включенные склады */}
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Включенные склады:
-                  </p>
-                  {warehouses.filter(w => w.enabled).length === 0 ? (
-                    <p className="text-sm text-gray-500 italic">Нет включенных складов</p>
-                  ) : (
-                    <div className="grid gap-2">
-                      {warehouses
-                        .filter(w => w.enabled)
-                        .map(warehouse => (
-                        <div key={warehouse.id} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                {warehouse.warehouseName}
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                ID: {warehouse.warehouseId}
-                              </p>
-                            </div>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => toggleWarehouse(warehouse.id)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <X className="w-4 h-4 mr-1" />
-                            Отключить
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Выбранные склады для задачи */}
-                {formData.filters.warehouseIds.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Склады для задачи:
-                    </p>
-                    <div className="flex items-center gap-2">
-                      {formData.filters.warehouseIds.map(warehouseId => {
-                        const warehouseRef = warehouseRefs.find(w => w.id === warehouseId);
-                        const warehouse = warehouses.find(w => w.warehouseId === warehouseId);
-                        return (
-                          <Badge key={warehouseId} variant="default" className="flex items-center gap-1">
-                            {warehouseRef?.name || warehouse?.warehouseName || `Склад ${warehouseId}`}
-                            <button
-                              type="button"
-                              onClick={() => removeWarehouse(warehouseId)}
-                              className="ml-1 hover:text-red-500"
-                              title="Удалить склад"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </Badge>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Поиск и выбор складов */}
-                <div className="space-y-2 warehouse-dropdown">
-                  <div className="relative">
-                    <Input
-                      placeholder="Поиск склада..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onFocus={() => setShowWarehouseDropdown(true)}
-                      className="w-full"
-                    />
-                    <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  </div>
-
-                  {showWarehouseDropdown && (
-                    <div className="absolute z-10 w-full max-h-60 overflow-y-auto border rounded-lg bg-white dark:bg-gray-800 shadow-lg">
-                      {filteredWarehouseRefs.slice(0, 20).map((warehouse) => (
-                        <div
-                          key={warehouse.id}
-                          className={`flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${
-                            selectedWarehouses.includes(warehouse.id) ? 'bg-blue-50 dark:bg-blue-900' : ''
-                          }`}
-                          onClick={() => handleWarehouseReferenceToggle(warehouse.id)}
-                        >
-                          <div className="flex items-center space-x-3">
-                            <input
-                              type="radio"
-                              name="warehouse"
-                              checked={selectedWarehouses.includes(warehouse.id)}
-                              onChange={() => handleWarehouseReferenceToggle(warehouse.id)}
-                              className="border-gray-300"
-                              title={`Выбрать склад ${warehouse.name}`}
-                            />
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                {warehouse.name}
-                              </p>
-                              <p className="text-sm text-gray-500">
-                                ID: {warehouse.id}
-                              </p>
-                            </div>
-                          </div>
-                          <Badge variant={warehouse.isActive ? 'success' : 'secondary'}>
-                            {warehouse.isActive ? 'Активен' : 'Неактивен'}
-                          </Badge>
-                        </div>
-                      ))}
-                      {filteredWarehouseRefs.length === 0 && (
-                        <div className="text-center py-4 text-gray-500">
-                          Склады не найдены
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {selectedWarehouses.length > 0 && (
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        type="button"
-                        onClick={addSelectedWarehouses}
-                        size="sm"
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        <Check className="w-4 h-4 mr-1" />
-                        Выбрать склад
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          setSelectedWarehouses([]);
-                          setSearchQuery('');
-                          setShowWarehouseDropdown(false);
-                        }}
-                        size="sm"
-                        variant="outline"
-                      >
-                        Отмена
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {formData.filters.warehouseIds.length === 0 && (
-                  <p className="text-sm text-red-500">Выберите склад</p>
-                )}
+                <WarehouseSelector
+                  selectedWarehouses={formData.filters.warehouseIds}
+                  onWarehousesChange={(warehouses) => setFormData(prev => ({
+                    ...prev,
+                    filters: { ...prev.filters, warehouseIds: warehouses }
+                  }))}
+                  required={true}
+                />
               </div>
 
               {/* Box Types */}
@@ -804,6 +701,23 @@ export default function NewTaskPage() {
             </Card>
           )}
 
+          {/* Validation Errors */}
+          {validationErrors.length > 0 && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="space-y-1">
+                  <div className="font-semibold">Ошибки валидации:</div>
+                  <ul className="list-disc list-inside">
+                    {validationErrors.map((err, idx) => (
+                      <li key={idx}>{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Actions */}
           <div className="flex justify-end space-x-4">
             <Link href="/dashboard">
@@ -811,7 +725,10 @@ export default function NewTaskPage() {
                 Отмена
               </Button>
             </Link>
-            <Button type="submit" disabled={isLoading || formData.filters.warehouseIds.length === 0 || formData.filters.boxTypeIds.length === 0}>
+            <Button 
+              type="submit" 
+              disabled={isLoading || formData.filters.warehouseIds.length === 0 || formData.filters.boxTypeIds.length === 0 || (formData.autoBook && !formData.autoBookSupplyId)}
+            >
               {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               <Save className="w-4 h-4 mr-2" />
               Создать задачу

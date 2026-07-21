@@ -29,6 +29,15 @@ export async function POST(
 
     console.log(`✅ Task found: ${task.name} (${task.taskNumber})`);
 
+    // Проверяем статус задачи - не запускаем поиск для завершенных задач
+    if (task.status === 'COMPLETED' || task.status === 'SUCCESS') {
+      console.log(`⚠️ Task is completed (status: ${task.status}), rejecting search request`);
+      return NextResponse.json({
+        success: false,
+        error: 'Задача успешно завершена и не может быть перезапущена. Создайте новую задачу вместо этого.',
+      }, { status: 400 });
+    }
+
     // Проверяем, не запущен ли уже поиск
     const isSearchInProgress = continuousSlotSearchService.isSearchInProgress();
     console.log(`🔍 Search in progress: ${isSearchInProgress}`);

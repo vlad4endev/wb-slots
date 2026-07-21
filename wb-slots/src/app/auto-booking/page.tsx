@@ -32,6 +32,7 @@ import {
 } from 'react-icons/fi';
 import Link from 'next/link';
 import DashboardLayout from '@/app/dashboard-layout';
+import WbAuthPopup from '@/components/wb-auth-popup';
 
 interface WBAuthStatus {
   isAuthenticated: boolean;
@@ -90,6 +91,7 @@ export default function AutoBookingPage() {
   const [bookingLogs, setBookingLogs] = useState<BookingLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showAuthPopup, setShowAuthPopup] = useState(false);
 
   useEffect(() => {
     fetchAutoBookingData();
@@ -102,7 +104,7 @@ export default function AutoBookingPage() {
 
       // Получаем данные из реальных API
       const [wbAuthResponse, statsResponse, logsResponse] = await Promise.all([
-        fetch('/api/auto-booking/wb-auth'),
+        fetch('/api/wb-session/status'),
         fetch('/api/auto-booking/stats'),
         fetch('/api/auto-booking/logs?limit=20')
       ]);
@@ -111,7 +113,11 @@ export default function AutoBookingPage() {
       if (wbAuthResponse.ok) {
         const wbAuthData = await wbAuthResponse.json();
         if (wbAuthData.success) {
-          setWbAuthStatus(wbAuthData.data);
+          setWbAuthStatus({
+            isAuthenticated: wbAuthData.data.isActive,
+            lastLogin: wbAuthData.data.lastLogin,
+            sessionExpires: wbAuthData.data.expiresAt
+          });
         }
       }
 
@@ -221,12 +227,14 @@ export default function AutoBookingPage() {
                   <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
                   Обновить
                 </Button>
-                <Link href="/wb-auth">
-                  <Button variant="outline" size="sm">
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    WB Авторизация
-                  </Button>
-                </Link>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowAuthPopup(true)}
+                >
+                  <Shield className="w-4 h-4 mr-2" />
+                  WB Авторизация
+                </Button>
               </div>
             </div>
           </div>
@@ -282,17 +290,20 @@ export default function AutoBookingPage() {
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
                     Для работы автобронирования необходимо авторизоваться в ЛК WB. 
-                    <Link href="/wb-auth" className="text-blue-600 hover:underline ml-1">
+                    <button 
+                      onClick={() => setShowAuthPopup(true)}
+                      className="text-blue-600 hover:underline ml-1"
+                    >
                       Перейти к авторизации
-                    </Link>
+                    </button>
                   </AlertDescription>
                 </Alert>
               )}
 
-              {wbAuthStatus.isAuthenticated && wbAuthStatus.sessionId && (
+              {wbAuthStatus.isAuthenticated && (
                 <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
                   <p className="text-sm text-green-800 dark:text-green-300">
-                    <strong>Сессия активна:</strong> {wbAuthStatus.sessionId}
+                    <strong>Сессия активна</strong> - автобронирование готово к работе
                   </p>
                 </div>
               )}
@@ -566,6 +577,18 @@ export default function AutoBookingPage() {
           </div>
         </div>
       </div>
+
+      {/* WB Auth Popup */}
+      <WbAuthPopup
+        isOpen={showAuthPopup}
+        onClose={() => setShowAuthPopup(false)}
+        onSuccess={(sessionData) => {
+          console.log('Auth success:', sessionData);
+          setShowAuthPopup(false);
+          fetchAutoBookingData(); // Обновляем данные после успешной авторизации
+        }}
+        // userId получится автоматически из сессии
+      />
     </DashboardLayout>
   );
 }

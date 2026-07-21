@@ -1,27 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
-import { WBSessionManager } from '@/lib/wb-session-manager';
+import { requireAuth } from '@/lib/auth';
+import { checkWBSessionStatus } from '@/lib/utils/session-utils';
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const user = await requireAuth(request);
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId') || user.id;
 
-    // Получаем активную сессию WB из базы данных
-    const activeSession = await WBSessionManager.getActiveSession(user.id);
-    
+    // Используем единую утилиту для проверки статуса сессии
+    const sessionStatus = await checkWBSessionStatus(userId);
+
     const wbAuthStatus = {
-      isAuthenticated: !!activeSession,
-      lastLogin: activeSession ? activeSession.expiresAt.toISOString() : null,
-      sessionExpires: activeSession ? activeSession.expiresAt.toISOString() : null,
-      userInfo: activeSession ? {
+      isAuthenticated: sessionStatus.isActive,
+      lastLogin: sessionStatus.lastLogin?.toISOString() || null,
+      sessionExpires: sessionStatus.expiresAt?.toISOString() || null,
+      userInfo: sessionStatus.isActive ? {
         name: 'Пользователь WB',
         email: 'wb@wildberries.ru',
         role: 'Продавец'
       } : null,
-      sessionId: activeSession?.sessionId || null
+      sessionId: sessionStatus.sessionId || null,
+      message: sessionStatus.message
     };
 
     return NextResponse.json({
@@ -31,7 +31,8 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error checking WB auth status:', error);
     return NextResponse.json({ 
-      error: 'Internal server error' 
+      success: false,
+      error: error instanceof Error ? error.message : 'Internal server error' 
     }, { status: 500 });
   }
 }

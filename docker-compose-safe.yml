@@ -1,0 +1,136 @@
+# ========================================
+# WB Slots - Безопасная конфигурация Docker
+# С защитой пользовательских данных
+# ========================================
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: wb-slots-postgres
+    environment:
+      POSTGRES_DB: wb_slots
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      # ИСПОЛЬЗУЕМ NAMED VOLUME для сохранения данных
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    # Защита от случайного удаления
+    labels:
+      - "wb-slots.data-protection=enabled"
+      - "wb-slots.service=postgres"
+
+  redis:
+    image: redis:7-alpine
+    container_name: wb-slots-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      # ИСПОЛЬЗУЕМ NAMED VOLUME для сохранения данных
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    # Защита от случайного удаления
+    labels:
+      - "wb-slots.data-protection=enabled"
+      - "wb-slots.service=redis"
+
+  app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: wb-slots-app
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/wb_slots?schema=public
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your-super-secret-jwt-key-here-change-in-production
+      - ENCRYPTION_KEY=your-32-byte-base64-encryption-key-here
+      - APP_BASE_URL=http://localhost:3000
+      - NODE_ENV=production
+      - PUPPETEER_SKIP_DOWNLOAD=true
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Проверка подключения к базе данных...' &&
+        npx prisma migrate deploy &&
+        echo 'Миграции применены успешно' &&
+        npx prisma db seed &&
+        echo 'Тестовые данные загружены' &&
+        echo 'Запуск приложения...' &&
+        node server.js
+      "
+    restart: unless-stopped
+    labels:
+      - "wb-slots.service=app"
+
+  worker:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: wb-slots-worker
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/wb_slots?schema=public
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your-super-secret-jwt-key-here-change-in-production
+      - ENCRYPTION_KEY=your-32-byte-base64-encryption-key-here
+      - NODE_ENV=production
+      - PUPPETEER_SKIP_DOWNLOAD=true
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: npx tsx src/workers/index.ts
+    restart: unless-stopped
+    labels:
+      - "wb-slots.service=worker"
+
+# ========================================
+# NAMED VOLUMES - КРИТИЧНО ДЛЯ СОХРАНЕНИЯ ДАННЫХ
+# ========================================
+volumes:
+  # Данные PostgreSQL - ВСЕГДА СОХРАНЯЮТСЯ
+  postgres_data:
+    driver: local
+    labels:
+      - "wb-slots.data-protection=enabled"
+      - "wb-slots.backup-required=true"
+      - "wb-slots.description=PostgreSQL database data"
+  
+  # Данные Redis - ВСЕГДА СОХРАНЯЮТСЯ  
+  redis_data:
+    driver: local
+    labels:
+      - "wb-slots.data-protection=enabled"
+      - "wb-slots.backup-required=true"
+      - "wb-slots.description=Redis cache and queue data"
+
+# ========================================
+# СЕТЬ
+# ========================================
+networks:
+  default:
+    name: wb-slots-network
+    driver: bridge
+    labels:
+      - "wb-slots.network=internal"

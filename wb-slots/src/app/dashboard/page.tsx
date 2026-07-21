@@ -23,7 +23,8 @@ import {
   FiArrowRight as ArrowRight,
   FiRefreshCw as RefreshCw,
   FiCheckCircle as CheckCircle2,
-  FiXCircle as XCircle
+  FiXCircle as XCircle,
+  FiShield as Shield
 } from 'react-icons/fi';
 import Link from 'next/link';
 import DashboardLayout from '@/app/dashboard-layout';
@@ -33,6 +34,7 @@ interface Task {
   name: string;
   description?: string;
   enabled: boolean;
+  status: string;
   scheduleCron?: string;
   autoBook: boolean;
   filters: any;
@@ -366,7 +368,11 @@ export default function DashboardPage() {
                             Просмотр
                           </Button>
                         </Link>
-                        {task.enabled ? (
+                        {task.status === 'COMPLETED' || task.status === 'SUCCESS' ? (
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            Завершена
+                          </div>
+                        ) : task.enabled ? (
                           <Button
                             variant="outline"
                             size="sm"
@@ -404,17 +410,17 @@ export default function DashboardPage() {
           </Card>
 
           {/* Quick Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-              <Link href="/settings/telegram">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer hover-lift">
+              <Link href="/analytics">
                 <CardContent className="p-6">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
-                      <MessageSquare className="w-6 h-6 text-white" />
+                    <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
+                      <BarChart3 className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <h3 className="font-medium text-gray-900 dark:text-white">Telegram</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Настройка уведомлений</p>
+                      <h3 className="font-medium text-gray-900 dark:text-white">Аналитика</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Статистика и отчеты</p>
                     </div>
                     <ArrowRight className="w-5 h-5 text-gray-400 ml-auto" />
                   </div>
@@ -422,7 +428,41 @@ export default function DashboardPage() {
               </Link>
             </Card>
 
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer hover-lift">
+              <Link href="/monitoring">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center">
+                      <Activity className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-900 dark:text-white">Мониторинг</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Производительность</p>
+                    </div>
+                    <ArrowRight className="w-5 h-5 text-gray-400 ml-auto" />
+                  </div>
+                </CardContent>
+              </Link>
+            </Card>
+
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer hover-lift">
+              <Link href="/alerts">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-red-500 rounded-lg flex items-center justify-center">
+                      <Shield className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-900 dark:text-white">Алерты</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Уведомления</p>
+                    </div>
+                    <ArrowRight className="w-5 h-5 text-gray-400 ml-auto" />
+                  </div>
+                </CardContent>
+              </Link>
+            </Card>
+
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer hover-lift">
               <Link href="/settings">
                 <CardContent className="p-6">
                   <div className="flex items-center gap-4">
@@ -431,7 +471,7 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <h3 className="font-medium text-gray-900 dark:text-white">Настройки</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Конфигурация системы</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Конфигурация</p>
                     </div>
                     <ArrowRight className="w-5 h-5 text-gray-400 ml-auto" />
                   </div>

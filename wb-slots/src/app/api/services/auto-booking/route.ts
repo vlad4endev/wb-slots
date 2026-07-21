@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { autoBookingService } from '@/lib/services/auto-booking-service';
+import { AutoBookingService } from '@/lib/services/auto-booking-service';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { createApiHandler } from '@/lib/errors';
 
 const bookingSchema = z.object({
   taskId: z.string(),
@@ -15,83 +16,101 @@ const bookingSchema = z.object({
   coefficient: z.number(),
 });
 
-export async function POST(request: NextRequest) {
-  try {
-    const user = await requireAuth(request);
-    const body = await request.json();
-    const validatedData = bookingSchema.parse(body);
+const postHandler = async (request: NextRequest) => {
+  const user = await requireAuth(request);
+  const body = await request.json();
+  const validatedData = bookingSchema.parse(body);
 
-    // Проверяем, не запущено ли уже бронирование
-    if (autoBookingService.isBookingInProgress()) {
-      return NextResponse.json({
-        success: false,
-        error: 'Бронирование уже запущено',
-      }, { status: 409 });
+  // Создаем экземпляр сервиса автобронирования
+  const autoBookingService = new AutoBookingService();
+
+  // Проверяем, не запущено ли уже бронирование
+  if (autoBookingService.isBookingInProgress()) {
+    return NextResponse.json({
+      success: false,
+      error: 'Бронирование уже запущено',
+    }, { status: 409 });
+  }
+
+  // ИСПРАВЛЕНО: Создаем правильную конфигурацию для EnhancedBookingConfig
+  const bookingConfig = {
+    taskId: validatedData.taskId,
+    userId: user.id,
+    runId: validatedData.runId,
+    slotId: validatedData.slotId,
+    supplyId: validatedData.supplyId,
+    warehouseId: validatedData.warehouseId,
+    boxTypeId: validatedData.boxTypeId,
+    date: validatedData.date,
+    coefficient: validatedData.coefficient,
+    // Опциональные настройки retry и timeout
+    retryConfig: {
+      maxAttempts: 3,
+      initialDelay: 2000,
+      maxDelay: 30000,
+      backoffMultiplier: 2,
+      retryableErrors: ['NETWORK_ERROR', 'TIMEOUT', 'RATE_LIMIT']
+    },
+    timeoutConfig: {
+      pageLoad: 60000,
+      navigation: 45000,
+      elementWait: 30000,
+      actionDelay: 1000
     }
+  };
 
-    // Создаем конфигурацию бронирования
-    const bookingConfig = {
-      ...validatedData,
-      userId: user.id,
-      prisma, // Передаем prisma в конфигурацию
-    };
+  // Запускаем бронирование
+  const result = await autoBookingService.startBooking(bookingConfig);
 
+  return NextResponse.json({
+    success: true,
+    data: result,
+    message: result.success ? 'Слот успешно забронирован' : 'Ошибка бронирования',
+  });
+};
 
-    // Запускаем бронирование
-    const result = await autoBookingService.startBooking(bookingConfig);
+export const POST = createApiHandler(postHandler, {
+  contextProvider: (request: NextRequest) => ({
+    endpoint: 'auto-booking',
+    method: 'POST'
+  })
+});
 
-    return NextResponse.json({
-      success: true,
-      data: result,
-      message: result.success ? 'Слот успешно забронирован' : 'Ошибка бронирования',
-    });
+const getHandler = async (request: NextRequest) => {
+  const user = await requireAuth(request);
+  const autoBookingService = new AutoBookingService();
 
-  } catch (error) {
-    console.error('Auto booking API error:', error);
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Internal server error',
-    }, { status: 500 });
-  }
-}
+  return NextResponse.json({
+    success: true,
+    data: {
+      isBookingInProgress: autoBookingService.isBookingInProgress(),
+    },
+  });
+};
 
-export async function GET(request: NextRequest) {
-  try {
-    const user = await requireAuth(request);
+export const GET = createApiHandler(getHandler, {
+  contextProvider: (request: NextRequest) => ({
+    endpoint: 'auto-booking-status',
+    method: 'GET'
+  })
+});
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        isBookingInProgress: autoBookingService.isBookingInProgress(),
-      },
-    });
+const deleteHandler = async (request: NextRequest) => {
+  const user = await requireAuth(request);
+  const autoBookingService = new AutoBookingService();
 
-  } catch (error) {
-    console.error('Auto booking status API error:', error);
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Internal server error',
-    }, { status: 500 });
-  }
-}
+  // Останавливаем бронирование
+  await autoBookingService.stop();
 
-export async function DELETE(request: NextRequest) {
-  try {
-    const user = await requireAuth(request);
+  return NextResponse.json({
+    success: true,
+    message: 'Бронирование остановлено',
+  });
+};
 
-    // Останавливаем бронирование
-    await autoBookingService.stop();
-
-    return NextResponse.json({
-      success: true,
-      message: 'Бронирование остановлено',
-    });
-
-  } catch (error) {
-    console.error('Stop auto booking API error:', error);
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Internal server error',
-    }, { status: 500 });
-  }
-}
+export const DELETE = createApiHandler(deleteHandler, {
+  contextProvider: (request: NextRequest) => ({
+    endpoint: 'auto-booking-stop',
+    method: 'DELETE'
+  })
+});

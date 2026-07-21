@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { autoBookingService } from '@/lib/auto-booking/auto-booking-service';
+import { getAppService } from '@/lib/app';
+import { IAutoBookingService } from '@/lib/architecture/unified-interfaces';
+import { logger } from '@/lib/logging';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,40 +23,20 @@ export async function POST(request: NextRequest) {
 
     console.log(`🚀 Executing auto-booking task: ${bookingTaskId} for user ${user.id}`);
 
-    // Check if task exists and belongs to user
-    const task = await autoBookingService.getBookingTask(bookingTaskId);
-    if (!task) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Booking task not found' 
-        },
-        { status: 404 }
-      );
-    }
-
-    if (task.userId !== user.id) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Access denied' 
-        },
-        { status: 403 }
-      );
-    }
-
-    if (task.status !== 'pending') {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: `Task is not in pending status: ${task.status}` 
-        },
-        { status: 400 }
-      );
-    }
-
+    const autoBookingService = getAppService<IAutoBookingService>('UnifiedAutoBookingService');
+    
     // Execute booking task
-    const result = await autoBookingService.executeBookingTask(bookingTaskId);
+    const result = await autoBookingService.startAutoBooking({
+      taskId: bookingTaskId,
+      userId: user.id,
+      wbToken: '', // Will be filled by the service
+      slotId: '',
+      supplyId: '',
+      warehouseId: 0,
+      boxTypeId: 0,
+      date: '',
+      coefficient: 0,
+    });
 
     return NextResponse.json({
       success: true,
@@ -62,18 +44,15 @@ export async function POST(request: NextRequest) {
         bookingTaskId,
         result: {
           success: result.success,
-          bookingId: result.bookingId,
+          message: result.message,
           error: result.error,
-          executionTime: result.executionTime,
-          screenshots: result.screenshots,
-          logs: result.logs,
         },
         message: result.success ? 'Auto-booking completed successfully' : 'Auto-booking failed',
       },
     });
 
   } catch (error) {
-    console.error('Execute auto-booking error:', error);
+    logger.error('Execute auto-booking error:', { error });
     
     if (error instanceof Error && error.name === 'AuthError') {
       return NextResponse.json(

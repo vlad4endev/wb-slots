@@ -101,7 +101,7 @@ export default function SlotSearch() {
       clearInterval(searchInterval);
       setSearchInterval(null);
     }
-  }, [autoSearch, filters.updateInterval, isLoading]);
+  }, [autoSearch, filters.updateInterval, isLoading, handleSearch, searchInterval]);
 
   const handleSearch = useCallback(async () => {
     try {
@@ -270,6 +270,47 @@ export default function SlotSearch() {
                 value={filters.coefficientMax}
                 onChange={(e) => handleFilterChange('coefficientMax', e.target.value)}
               />
+            </div>
+
+            {/* Быстрый выбор дат */}
+            <div className="space-y-2 col-span-full">
+              <Label className="text-sm font-medium">Быстрый выбор периода</Label>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date().toISOString().split('T')[0];
+                    handleFilterChange('dateFrom', today);
+                    handleFilterChange('dateTo', today);
+                  }}
+                  className="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 rounded-md transition-colors"
+                >
+                  Сегодня
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                    handleFilterChange('dateFrom', tomorrow);
+                    handleFilterChange('dateTo', tomorrow);
+                  }}
+                  className="px-3 py-1 text-xs bg-purple-100 hover:bg-purple-200 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 rounded-md transition-colors"
+                >
+                  Завтра
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date().toISOString().split('T')[0];
+                    const week = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                    handleFilterChange('dateFrom', today);
+                    handleFilterChange('dateTo', week);
+                  }}
+                  className="px-3 py-1 text-xs bg-green-100 hover:bg-green-200 dark:bg-green-900/20 dark:hover:bg-green-900/30 rounded-md transition-colors"
+                >
+                  Неделя
+                </button>
+              </div>
             </div>
 
             {/* Даты */}

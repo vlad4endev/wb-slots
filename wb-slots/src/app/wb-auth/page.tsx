@@ -10,17 +10,19 @@ import {
   FiCheckCircle as CheckCircle,
   FiAlertCircle as AlertCircle,
   FiTrash2 as Trash2,
-  FiClock as Clock
+  FiClock as Clock,
+  FiEye as Eye
 } from 'react-icons/fi';
 import DashboardLayout from '@/app/dashboard-layout';
 import Link from 'next/link';
 import WBAuthPopup from '@/components/wb-auth-popup';
+import SessionDetailsModal from '@/components/session-details-modal';
 
 interface WBSession {
   id: string;
-  sessionId: string;
+  sessionId?: string;
   isActive: boolean;
-  expiresAt: string;
+  expiresAt?: string | Date;
   lastUsedAt?: string;
   createdAt: string;
 }
@@ -31,6 +33,8 @@ export default function WBAuthPage() {
   const [success, setSuccess] = useState('');
   const [sessions, setSessions] = useState<WBSession[]>([]);
   const [showAuthPopup, setShowAuthPopup] = useState(false);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [showSessionDetails, setShowSessionDetails] = useState(false);
 
   useEffect(() => {
     fetchSessions();
@@ -70,6 +74,16 @@ export default function WBAuthPage() {
     } catch (error) {
       setError('Ошибка удаления сессии');
     }
+  };
+
+  const handleViewSessionDetails = (sessionId: string) => {
+    setSelectedSessionId(sessionId);
+    setShowSessionDetails(true);
+  };
+
+  const handleCloseSessionDetails = () => {
+    setShowSessionDetails(false);
+    setSelectedSessionId(null);
   };
 
   return (
@@ -169,7 +183,7 @@ export default function WBAuthPage() {
                         </div>
                         <div>
                           <p className="font-medium">
-                            Сессия {session.sessionId.substring(0, 8)}...
+                            Сессия {(session.sessionId || session.id || 'N/A').substring(0, 8)}...
                           </p>
                           <p className="text-sm text-gray-500">
                             Создана: {new Date(session.createdAt).toLocaleString('ru-RU')}
@@ -179,9 +193,11 @@ export default function WBAuthPage() {
                               Использована: {new Date(session.lastUsedAt).toLocaleString('ru-RU')}
                             </p>
                           )}
-                          <p className="text-sm text-gray-500">
-                            Истекает: {new Date(session.expiresAt).toLocaleString('ru-RU')}
-                          </p>
+                          {session.expiresAt && (
+                            <p className="text-sm text-gray-500">
+                              Истекает: {new Date(session.expiresAt).toLocaleString('ru-RU')}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
@@ -195,8 +211,18 @@ export default function WBAuthPage() {
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={() => handleViewSessionDetails(session.id)}
+                          className="text-blue-600 hover:text-blue-700"
+                          title="Просмотреть детали сессии"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => handleDeleteSession(session.sessionId)}
                           className="text-red-600 hover:text-red-700"
+                          title="Удалить сессию"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -277,6 +303,15 @@ export default function WBAuthPage() {
         onClose={() => setShowAuthPopup(false)}
         onSuccess={handleAuthSuccess}
       />
+
+      {/* Session Details Modal */}
+      {selectedSessionId && (
+        <SessionDetailsModal
+          isOpen={showSessionDetails}
+          onClose={handleCloseSessionDetails}
+          sessionId={selectedSessionId}
+        />
+      )}
 
       {/* Success/Error Messages */}
       {success && (

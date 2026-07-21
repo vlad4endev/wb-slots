@@ -103,21 +103,30 @@ export async function GET(request: NextRequest) {
     });
 
     // Получаем среднее время выполнения задач
-    const avgTimeResult = await prisma.run.aggregate({
+    // Сначала получаем все завершенные задачи с временными метками
+    const completedRuns = await prisma.run.findMany({
       where: {
         userId: user.id,
         status: 'COMPLETED',
-        startedAt: { not: null },
-        finishedAt: { not: null }
+        finishedAt: { not: null }  // Только завершенные задачи (startedAt всегда заполнен)
       },
-      _avg: {
-        // Вычисляем разность между finishedAt и startedAt
-        // Это приблизительное значение, так как Prisma не поддерживает вычисления напрямую
+      select: {
+        startedAt: true,
+        finishedAt: true
       }
     });
 
-    // Вычисляем среднее время выполнения в секундах
-    const averageBookingTime = 2.5; // Базовое значение, можно улучшить через raw query
+    // Вычисляем среднее время выполнения
+    let averageBookingTime = 0;
+    if (completedRuns.length > 0) {
+      const totalTime = completedRuns.reduce((sum, run) => {
+        if (run.startedAt && run.finishedAt) {
+          return sum + (run.finishedAt.getTime() - run.startedAt.getTime());
+        }
+        return sum;
+      }, 0);
+      averageBookingTime = Math.round(totalTime / completedRuns.length / 1000); // в секундах
+    }
 
     return NextResponse.json({
       success: true,

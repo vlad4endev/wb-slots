@@ -191,7 +191,11 @@ export function withRateLimit(
       });
 
       return middleware(request, async (req) => {
-        return method.call(this, req, ...args);
+        if (method && typeof method.call === 'function') {
+          return method.call(this, req, ...args);
+        } else {
+          throw new Error('Method is not callable');
+        }
       });
     };
 
