@@ -1,8 +1,10 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { SignJWT, jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
 import { prisma } from './prisma';
 import { User } from '@prisma/client';
+import { requireEnv, getEnv } from './env';
+import { logger } from './logging';
 
 export interface JWTPayload {
   sub: string;
@@ -28,8 +30,10 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 export async function generateToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): Promise<string> {
-  const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'wb-slots-super-secret-jwt-key-2024');
-  const expiresIn = process.env.JWT_EXPIRES_IN || '30d'; // Увеличиваем до 30 дней
+  const secret = new TextEncoder().encode(
+    requireEnv('JWT_SECRET', 'wb-slots-super-secret-jwt-key-2024-dev-only')
+  );
+  const expiresIn = getEnv('JWT_EXPIRES_IN', '30d'); // Увеличиваем до 30 дней
   
   return await new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
@@ -39,7 +43,9 @@ export async function generateToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): P
 }
 
 export async function verifyToken(token: string): Promise<JWTPayload> {
-  const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'wb-slots-super-secret-jwt-key-2024');
+  const secret = new TextEncoder().encode(
+    requireEnv('JWT_SECRET', 'wb-slots-super-secret-jwt-key-2024-dev-only')
+  );
 
   try {
     const { payload } = await jwtVerify(token, secret);
@@ -53,19 +59,19 @@ export async function getCurrentUser(request: NextRequest): Promise<User | null>
   try {
     const token = extractTokenFromRequest(request);
     if (!token) {
-      console.log('No token found in request');
+      if (process.env.NODE_ENV === 'development') {
+        logger.debug('No token found in request');
+      }
       return null;
     }
 
     const payload = await verifyToken(token);
-    console.log('🔍 JWT Payload:', payload);
     
     // Поддерживаем как sub, так и userId для совместимости
     const userId = payload.sub || payload.userId;
-    console.log('🔍 User ID:', userId);
     
     if (!userId) {
-      console.error('❌ JWT payload не содержит sub или userId');
+      logger.warn({ payload }, 'JWT payload does not contain sub or userId');
       return null;
     }
     
@@ -74,20 +80,24 @@ export async function getCurrentUser(request: NextRequest): Promise<User | null>
     });
 
     if (!user) {
-      console.log('User not found for token payload:', payload);
-      console.log('This might indicate that the user was deleted or the token is invalid');
+      logger.warn({ userId }, 'User not found for token payload - user may have been deleted or token is invalid');
       return null;
     }
 
     if (!user.isActive) {
-      console.log('User is inactive:', user.id);
+      logger.warn({ userId: user.id }, 'User is inactive');
       return null;
     }
 
-    console.log('User authenticated successfully:', { id: user.id, email: user.email });
+    if (process.env.NODE_ENV === 'development') {
+      logger.debug({ userId: user.id, email: user.email }, 'User authenticated successfully');
+    }
+    
     return user;
   } catch (error) {
-    console.log('Error in getCurrentUser:', error);
+    logger.error({ 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    }, 'Error in getCurrentUser');
     return null;
   }
 }
@@ -97,18 +107,22 @@ export function extractTokenFromRequest(request: NextRequest): string | null {
   const authHeader = request.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
-    console.log('Token found in Authorization header');
+    if (process.env.NODE_ENV === 'development') {
+      logger.debug('Token found in Authorization header');
+    }
     return token;
   }
 
   // Try cookie
   const token = request.cookies.get('auth-token')?.value;
   if (token) {
-    console.log('Token found in cookie');
+    if (process.env.NODE_ENV === 'development') {
+      logger.debug('Token found in cookie');
+    }
     return token;
   }
 
-  console.log('No token found in request headers or cookies');
+  // Не логируем отсутствие токена, это нормальная ситуация для публичных маршрутов
   return null;
 }
 
@@ -128,24 +142,63 @@ export async function requireAdmin(request: NextRequest): Promise<User> {
   return user;
 }
 
-export function setAuthCookie(response: Response, token: string): void {
-  const isProduction = process.env.NODE_ENV === 'production';
-  const secureFlag = isProduction ? 'Secure; ' : '';
-  
-  response.headers.set(
-    'Set-Cookie',
-    `auth-token=${token}; HttpOnly; ${secureFlag}SameSite=Lax; Path=/; Max-Age=${7 * 24 * 60 * 60}`
-  );
+function shouldUseSecureCookies(request?: NextRequest): boolean {
+  const override = process.env.AUTH_COOKIE_SECURE?.toLowerCase();
+  if (override === 'true') {
+    return true;
+  }
+  if (override === 'false') {
+    return false;
+  }
+
+  if (request) {
+    const forwardedProto = request.headers.get('x-forwarded-proto');
+    if (forwardedProto) {
+      const proto = forwardedProto.split(',')[0]?.trim();
+      if (proto) {
+        return proto === 'https';
+      }
+    }
+
+    const origin = request.headers.get('origin');
+    if (origin?.startsWith('https://')) {
+      return true;
+    }
+
+    if (request.nextUrl?.protocol === 'https:') {
+      return true;
+    }
+  }
+
+  return false;
 }
 
-export function clearAuthCookie(response: Response): void {
-  const isProduction = process.env.NODE_ENV === 'production';
-  const secureFlag = isProduction ? 'Secure; ' : '';
-  
-  response.headers.set(
-    'Set-Cookie',
-    `auth-token=; HttpOnly; ${secureFlag}SameSite=Lax; Path=/; Max-Age=0`
-  );
+export function setAuthCookie(response: NextResponse, token: string, request?: NextRequest): void {
+  const secure = shouldUseSecureCookies(request);
+
+  response.cookies.set({
+    name: 'auth-token',
+    value: token,
+    httpOnly: true,
+    secure,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60,
+  });
+}
+
+export function clearAuthCookie(response: NextResponse, request?: NextRequest): void {
+  const secure = shouldUseSecureCookies(request);
+
+  response.cookies.set({
+    name: 'auth-token',
+    value: '',
+    httpOnly: true,
+    secure,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
+  });
 }
 
 export async function getServerSession(request: NextRequest): Promise<{ user: JWTPayload } | null> {
@@ -159,3 +212,35 @@ export async function getServerSession(request: NextRequest): Promise<{ user: JW
     return null;
   }
 }
+
+// NextAuth.js configuration for compatibility
+export const authOptions = {
+  providers: [],
+  callbacks: {
+    async jwt({ token, user }: any) {
+      if (user) {
+        token.id = user.id;
+        token.email = user.email;
+        token.role = user.role;
+      }
+      return token;
+    },
+    async session({ session, token }: any) {
+      if (token) {
+        session.user.id = token.id;
+        session.user.email = token.email;
+        session.user.role = token.role;
+      }
+      return session;
+    },
+  },
+  pages: {
+    signIn: '/auth/login',
+    error: '/auth/error',
+  },
+  session: {
+    strategy: 'jwt' as const,
+    maxAge: 7 * 24 * 60 * 60, // 7 days
+  },
+  secret: requireEnv('JWT_SECRET', 'wb-slots-super-secret-jwt-key-2024-dev-only'),
+};

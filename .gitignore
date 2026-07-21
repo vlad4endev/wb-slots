@@ -1,0 +1,19 @@
+# Backups and data dumps must never be committed to this repo
+/backups/
+/*.zip
+/wb-backup-*
+/*.sql
+
+# OS / editor cruft
+.DS_Store
+desktop.ini
+/-p/
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Misc local tooling
+/.venv/
+node_modules/

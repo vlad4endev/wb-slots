@@ -1,33 +1,58 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
+import { requireEnv } from '@/lib/env';
+import { logger } from '@/lib/logging';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'wb-slots-super-secret-jwt-key-2024');
+// В production требуется обязательное наличие JWT_SECRET
+// В development используется fallback значение с предупреждением
+const JWT_SECRET = new TextEncoder().encode(
+  requireEnv('JWT_SECRET', 'wb-slots-super-secret-jwt-key-2024-dev-only')
+);
+
+// Публичные маршруты, не требующие аутентификации.
+// Всё остальное, что попадает в matcher ниже, теперь по умолчанию защищено —
+// раньше matcher и реальная проверка (if ниже) были рассинхронизированы:
+// /api/tasks, /api/tokens, /api/warehouses, /api/dashboard, /api/wb-auth
+// входили в matcher, но НЕ входили в условие проверки токена, поэтому
+// проходили через middleware вообще без аутентификации.
+const PUBLIC_PATH_PREFIXES = [
+  '/auth/',
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/telegram',
+  '/api/auth/telegram-widget',
+  '/api/auth/logout',
+];
+
+function isPublicPath(pathname: string): boolean {
+  if (pathname === '/') return true;
+  return PUBLIC_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
 
 export async function middleware(request: NextRequest) {
-  console.log('Middleware checking:', request.nextUrl.pathname);
-  
+  // В middleware логируем только в development для отладки
+  // В production избегаем лишнего логирования для производительности
+  if (process.env.NODE_ENV === 'development') {
+    logger.debug({ pathname: request.nextUrl.pathname }, 'Middleware checking path');
+  }
+
   // Пропускаем маршруты авторизации и главную страницу
-  if (request.nextUrl.pathname.startsWith('/auth/') || 
-      request.nextUrl.pathname.startsWith('/api/auth/login') ||
-      request.nextUrl.pathname.startsWith('/api/auth/register') ||
-      request.nextUrl.pathname === '/') {
-    console.log('Skipping auth route or home page:', request.nextUrl.pathname);
+  if (isPublicPath(request.nextUrl.pathname)) {
+    if (process.env.NODE_ENV === 'development') {
+      logger.debug({ pathname: request.nextUrl.pathname }, 'Skipping auth route or home page');
+    }
     return NextResponse.next();
   }
 
-  // Проверяем только защищенные маршруты
-  if (request.nextUrl.pathname.startsWith('/dashboard') || 
-      request.nextUrl.pathname.startsWith('/tasks') ||
-      request.nextUrl.pathname.startsWith('/settings') ||
-      request.nextUrl.pathname.startsWith('/api/auth/me') ||
-      request.nextUrl.pathname.startsWith('/api/settings/')) {
-    
+  // Всё, что попало сюда и входит в matcher ниже, требует валидного токена
+  {
     const token = request.cookies.get('auth-token')?.value;
-    console.log('Token found:', !!token);
     
     if (!token) {
-      console.log('No token, redirecting to home page');
+      // Логируем предупреждение только для защищенных маршрутов
+      logger.warn({ pathname: request.nextUrl.pathname }, 'No token found, redirecting');
+      
       // Если нет токена, перенаправляем на главную страницу
       if (request.nextUrl.pathname.startsWith('/api/')) {
         return NextResponse.json(
@@ -41,14 +66,21 @@ export async function middleware(request: NextRequest) {
     try {
       // Проверяем токен с помощью jose (Edge Runtime compatible)
       const { payload } = await jwtVerify(token, JWT_SECRET);
-      console.log('Token payload:', payload);
-      console.log('Token valid, proceeding');
+      
+      // Логируем успешную проверку только в development
+      if (process.env.NODE_ENV === 'development') {
+        logger.debug({ userId: payload.sub }, 'Token verified successfully');
+      }
       
       // Токен валиден, продолжаем
       return NextResponse.next();
       
     } catch (error) {
-      console.log('Token verification error:', error);
+      // Ошибки верификации токена логируем как WARN (потенциальная проблема безопасности)
+      logger.warn({ 
+        pathname: request.nextUrl.pathname,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }, 'Token verification failed');
       // Токен невалиден или истек, удаляем cookie и перенаправляем
       const response = request.nextUrl.pathname.startsWith('/api/')
         ? NextResponse.json(
@@ -77,12 +109,11 @@ export const config = {
     '/dashboard/:path*',
     '/tasks/:path*',
     '/settings/:path*',
-    '/api/auth/me',
-    '/api/tasks/:path*',
-    '/api/tokens/:path*',
-    '/api/warehouses/:path*',
-    '/api/settings/:path*',
-    '/api/dashboard/:path*',
-    '/api/wb-auth/:path*',
+    // Всё под /api/ защищено по умолчанию; исключения — только явный allowlist
+    // в PUBLIC_PATH_PREFIXES выше (логин/регистрация/telegram-вход/logout).
+    // Раньше сюда нужно было вручную добавлять каждую новую группу роутов —
+    // это и привело к тому, что /api/debug/*, /api/admin/*, /api/wb-session/*
+    // не проверялись вовсе.
+    '/api/:path*',
   ],
 };

@@ -89,6 +89,13 @@ export class RateLimitService {
       maxRequests: 10,          // 10 выполнений задачи за 5 минут
       keyPrefix: 'rate_limit:task',
     });
+
+    // Лимиты для попыток входа (защита от credential stuffing / брутфорса)
+    this.configs.set('auth_login', {
+      windowMs: 5 * 60 * 1000, // 5 минут
+      maxRequests: 10,          // 10 попыток входа за 5 минут на ключ (IP+email)
+      keyPrefix: 'rate_limit:auth_login',
+    });
   }
 
   /**
