@@ -5,47 +5,56 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 250 15% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 250 15% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
+    --popover-foreground: 250 15% 12%;
+    /* Brand: vivid violet, closer to Stripe/Linear-style SaaS primaries
+       than the stock shadcn blue this theme shipped with. */
+    --primary: 262 83% 58%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 84% 4.9%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 84% 4.9%;
+    --secondary: 250 20% 96%;
+    --secondary-foreground: 250 15% 12%;
+    --muted: 250 20% 96%;
+    --muted-foreground: 250 8% 46%;
+    --accent: 262 60% 96%;
+    --accent-foreground: 262 83% 40%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+    --border: 250 20% 90%;
+    --input: 250 20% 90%;
+    --ring: 262 83% 58%;
+    --radius: 0.75rem;
+
+    /* Brand gradient stops, reused by .bg-brand-gradient / .text-brand-gradient */
+    --brand-from: 262 83% 58%;
+    --brand-to: 291 64% 58%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 84% 4.9%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --background: 250 25% 7%;
+    --foreground: 250 15% 96%;
+    --card: 250 22% 10%;
+    --card-foreground: 250 15% 96%;
+    --popover: 250 22% 10%;
+    --popover-foreground: 250 15% 96%;
+    --primary: 258 90% 69%;
+    --primary-foreground: 250 25% 7%;
+    --secondary: 250 18% 16%;
+    --secondary-foreground: 250 15% 96%;
+    --muted: 250 18% 16%;
+    --muted-foreground: 250 10% 65%;
+    --accent: 258 40% 20%;
+    --accent-foreground: 258 90% 82%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 94.1%;
+    --border: 250 18% 18%;
+    --input: 250 18% 18%;
+    --ring: 258 90% 69%;
+
+    --brand-from: 258 90% 69%;
+    --brand-to: 291 70% 66%;
   }
 }
 
@@ -128,48 +137,21 @@
   animation: fadeIn 0.3s ease-out 0.3s both;
 }
 
-/* Status indicators */
-.status-success {
-  @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200;
-}
-
-.status-warning {
-  @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200;
-}
-
-.status-error {
-  @apply bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200;
-}
-
-.status-info {
-  @apply bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200;
-}
-
 /* Card hover effects */
 .card-hover {
   @apply transition-all duration-200 hover:shadow-lg hover:-translate-y-1;
 }
 
-/* Button variants */
-.btn-primary {
-  @apply bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md font-medium transition-colors;
+/* Brand gradient helpers, driven by the --brand-from/--brand-to tokens above */
+.bg-brand-gradient {
+  background-image: linear-gradient(135deg, hsl(var(--brand-from)), hsl(var(--brand-to)));
 }
 
-.btn-secondary {
-  @apply bg-secondary text-secondary-foreground hover:bg-secondary/80 px-4 py-2 rounded-md font-medium transition-colors;
-}
-
-.btn-outline {
-  @apply border border-input bg-background hover:bg-accent hover:text-accent-foreground px-4 py-2 rounded-md font-medium transition-colors;
-}
-
-.btn-destructive {
-  @apply bg-destructive text-destructive-foreground hover:bg-destructive/90 px-4 py-2 rounded-md font-medium transition-colors;
-}
-
-/* Form styles */
-.form-input {
-  @apply flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+.text-brand-gradient {
+  background-image: linear-gradient(135deg, hsl(var(--brand-from)), hsl(var(--brand-to)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 /* Enhanced animations */
@@ -339,33 +321,9 @@
   @apply transform -translate-y-2 shadow-xl;
 }
 
-.hover-glow {
-  @apply transition-all duration-300 ease-out;
-}
-
-.hover-glow:hover {
-  @apply shadow-lg shadow-blue-500/25;
-}
-
-.hover-scale {
-  @apply transition-transform duration-200 ease-out;
-}
-
-.hover-scale:hover {
-  @apply transform scale-105;
-}
-
 /* Loading states */
 .skeleton {
   @apply bg-gray-200 dark:bg-gray-700 rounded animate-pulse;
-}
-
-.skeleton-text {
-  @apply h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse;
-}
-
-.skeleton-avatar {
-  @apply w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse;
 }
 
 /* Mobile optimizations */
@@ -422,14 +380,6 @@
 
 [data-height] {
   height: attr(data-height);
-}
-
-.form-label {
-  @apply text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70;
-}
-
-.form-error {
-  @apply text-sm text-destructive;
 }
 
 /* Table styles */

@@ -17,23 +17,23 @@ interface DashboardHeaderProps {
 
 export default function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
   return (
-    <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 py-4">
+    <header className="bg-card/80 backdrop-blur-md border-b border-border/60 px-6 py-4 sticky top-0 z-10">
       <div className="flex items-center justify-between">
         {/* Left side - can be empty or have breadcrumbs */}
         <div className="flex-1">
           {/* Breadcrumbs or page title can go here */}
         </div>
-        
+
         {/* Right side - User menu */}
         <div className="flex items-center space-x-4">
           {user ? (
             <AccountMenu user={user} onLogout={onLogout} />
           ) : (
             <div className="flex items-center space-x-2">
-              <a href="/auth/login" className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+              <a href="/auth/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                 Войти
               </a>
-              <a href="/auth/register" className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700">
+              <a href="/auth/register" className="text-sm bg-brand-gradient text-white px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity">
                 Регистрация
               </a>
             </div>

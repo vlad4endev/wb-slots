@@ -9,19 +9,22 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  FiLoader as Loader2,
-  FiEye as Eye,
-  FiEyeOff as EyeOff,
-  FiArrowRight as ArrowRight,
-  FiCheckCircle as CheckCircle,
-  FiTarget as Target,
-  FiLogIn as LogIn,
-  FiShield as Shield,
-  FiZap as Zap,
-  FiStar as Star,
-  FiUserPlus as UserPlus,
-  FiMessageCircle as MessageCircle
-} from 'react-icons/fi';
+  Loader2,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  Target,
+  LogIn,
+  Zap,
+  Shield,
+  MessageCircle,
+} from 'lucide-react';
+
+const BENEFITS = [
+  { icon: Zap, gradient: 'from-violet-500 to-fuchsia-500', title: 'Автоматизация', description: 'Полностью автоматический поиск слотов 24/7 с уведомлениями в Telegram' },
+  { icon: Target, gradient: 'from-fuchsia-500 to-pink-500', title: 'Умный поиск', description: 'ИИ анализирует коэффициенты и находит самые выгодные слоты' },
+  { icon: Shield, gradient: 'from-indigo-500 to-violet-500', title: 'Безопасность', description: 'Шифрование данных и безопасная работа с API Wildberries' },
+];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -49,11 +52,8 @@ export default function LoginPage() {
       });
 
       const data = await response.json();
-      console.log('Login response:', data);
 
       if (data.success) {
-        console.log('Login successful, redirecting to dashboard...');
-        // Используем window.location для принудительного перенаправления
         window.location.href = '/dashboard';
       } else {
         setError(data.error || 'Ошибка входа');
@@ -73,61 +73,38 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-      {/* Background Pattern */}
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%236366f1%22%20fill-opacity%3D%220.05%22%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2230%22%20r%3D%222%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-40"></div>
-      
+    <div className="min-h-screen bg-background relative overflow-hidden">
+      <div className="pointer-events-none absolute -top-32 -right-32 w-[28rem] h-[28rem] bg-violet-400/15 dark:bg-violet-500/10 rounded-full blur-3xl" />
+      <div className="pointer-events-none absolute bottom-0 -left-32 w-[24rem] h-[24rem] bg-fuchsia-400/10 dark:bg-fuchsia-500/10 rounded-full blur-3xl" />
+
       <div className="relative flex min-h-screen">
         {/* Left Side - Branding */}
         <div className="hidden lg:flex lg:w-1/2 flex-col justify-center px-12 xl:px-16">
           <div className="max-w-md">
-            {/* Logo with Text */}
             <div className="mb-12 animate-fade-in">
               <Link href="/" className="inline-flex items-center space-x-4 group">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg group-hover:shadow-xl">
-                  <Target className="w-9 h-9 text-white" />
+                <div className="w-14 h-14 bg-brand-gradient rounded-2xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300 shadow-lg shadow-violet-500/25">
+                  <Target className="w-7 h-7 text-white" />
                 </div>
                 <div className="text-left">
-                  <h1 className="text-4xl font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-300">
-                    WB Slots
-                  </h1>
-                  <p className="text-lg text-gray-600 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors duration-300">
-                    Автоматический поиск слотов Wildberries
-                  </p>
+                  <h1 className="text-3xl font-bold text-foreground">WB Slots</h1>
+                  <p className="text-muted-foreground">Поиск слотов Wildberries</p>
                 </div>
               </Link>
             </div>
-            
+
             <div className="space-y-6">
-              <div className="flex items-start space-x-3 animate-fade-in-delay-1">
-                <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Zap className="w-4 h-4 text-white" />
+              {BENEFITS.map((item, i) => (
+                <div key={item.title} className={`flex items-start gap-3 animate-fade-in-delay-${i + 1}`}>
+                  <div className={`w-9 h-9 bg-gradient-to-br ${item.gradient} rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm`}>
+                    <item.icon className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground">{item.title}</h3>
+                    <p className="text-sm text-muted-foreground">{item.description}</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">Автоматизация</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Полностью автоматический поиск слотов 24/7 с уведомлениями в Telegram</p>
-                </div>
-              </div>
-              
-              <div className="flex items-start space-x-3 animate-fade-in-delay-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Target className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">Умный поиск</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">ИИ анализирует коэффициенты и находит самые выгодные слоты</p>
-                </div>
-              </div>
-              
-              <div className="flex items-start space-x-3 animate-fade-in-delay-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Shield className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">Безопасность</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Шифрование данных и безопасная работа с API Wildberries</p>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
@@ -135,50 +112,37 @@ export default function LoginPage() {
         {/* Right Side - Login Form */}
         <div className="w-full lg:w-1/2 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8 lg:py-0">
           <div className="w-full max-w-md">
-            {/* Mobile Logo */}
             <div className="lg:hidden text-center mb-8 animate-fade-in">
               <Link href="/" className="inline-flex items-center space-x-3 group">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200 shadow-lg">
-                  <Target className="w-6 h-6 text-white" />
+                <div className="w-11 h-11 bg-brand-gradient rounded-xl flex items-center justify-center shadow-md shadow-violet-500/20">
+                  <Target className="w-5 h-5 text-white" />
                 </div>
                 <div className="text-left">
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-300">
-                    WB Slots
-                  </h1>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors duration-300">
-                    Автоматический поиск слотов Wildberries
-                  </p>
+                  <h1 className="text-xl font-bold text-foreground">WB Slots</h1>
+                  <p className="text-xs text-muted-foreground">Поиск слотов Wildberries</p>
                 </div>
               </Link>
             </div>
 
-            <Card className="border-0 shadow-2xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm animate-fade-in">
-              <CardHeader className="space-y-2 text-center pb-8">
-                <div className="mx-auto w-12 h-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center mb-4">
-                  <LogIn className="w-6 h-6 text-white" />
+            <Card className="border border-border/60 shadow-xl shadow-violet-950/5 animate-fade-in">
+              <CardHeader className="space-y-2 text-center pb-6">
+                <div className="mx-auto w-11 h-11 bg-brand-gradient rounded-full flex items-center justify-center mb-3 shadow-md shadow-violet-500/20">
+                  <LogIn className="w-5 h-5 text-white" />
                 </div>
-                <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
-                  Добро пожаловать!
-                </CardTitle>
-                <CardDescription className="text-gray-600 dark:text-gray-400">
-                  Войдите в свой аккаунт для продолжения
-                </CardDescription>
+                <CardTitle className="text-2xl font-bold text-foreground">Добро пожаловать!</CardTitle>
+                <CardDescription>Войдите в свой аккаунт для продолжения</CardDescription>
               </CardHeader>
-              
+
               <CardContent className="space-y-6">
                 <form onSubmit={handleSubmit} className="space-y-5">
                   {error && (
-                    <Alert variant="destructive" className="border-red-200 bg-red-50 dark:bg-red-900/20">
-                      <AlertDescription className="text-red-800 dark:text-red-200">
-                        {error}
-                      </AlertDescription>
+                    <Alert variant="destructive">
+                      <AlertDescription>{error}</AlertDescription>
                     </Alert>
                   )}
 
                   <div className="space-y-2">
-                    <Label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Email адрес
-                    </Label>
+                    <Label htmlFor="email">Email адрес</Label>
                     <Input
                       id="email"
                       name="email"
@@ -187,14 +151,12 @@ export default function LoginPage() {
                       value={formData.email}
                       onChange={handleChange}
                       placeholder="your@email.com"
-                      className="h-12 px-4 border-gray-200 dark:border-gray-600 focus:border-blue-500 focus:ring-blue-500/20 transition-colors"
+                      className="h-11"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Пароль
-                    </Label>
+                    <Label htmlFor="password">Пароль</Label>
                     <div className="relative">
                       <Input
                         id="password"
@@ -204,83 +166,62 @@ export default function LoginPage() {
                         value={formData.password}
                         onChange={handleChange}
                         placeholder="Введите пароль"
-                        className="h-12 px-4 pr-12 border-gray-200 dark:border-gray-600 focus:border-blue-500 focus:ring-blue-500/20 transition-colors"
+                        className="h-11 pr-11"
                       />
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="absolute right-0 top-0 h-12 w-12 hover:bg-transparent text-gray-400 hover:text-gray-600"
+                        className="absolute right-0 top-0 h-11 w-11 hover:bg-transparent text-muted-foreground hover:text-foreground"
                         onClick={() => setShowPassword(!showPassword)}
+                        aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
                       >
-                        {showPassword ? (
-                          <EyeOff className="h-5 w-5" />
-                        ) : (
-                          <Eye className="h-5 w-5" />
-                        )}
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <Link
-                      href="/auth/forgot-password"
-                      className="text-sm text-blue-600 hover:text-blue-500 font-medium transition-colors"
-                    >
+                    <Link href="/auth/forgot-password" className="text-sm text-primary hover:underline font-medium">
                       Забыли пароль?
                     </Link>
                   </div>
 
-                  <Button 
-                    type="submit" 
-                    className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium transition-all duration-200 transform hover:scale-[1.02] shadow-lg hover:shadow-xl" 
-                    disabled={isLoading}
-                  >
+                  <Button type="submit" className="w-full h-11 bg-brand-gradient hover:opacity-90 border-0 shadow-lg shadow-violet-500/20" disabled={isLoading}>
                     {isLoading ? (
                       <>
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Входим...
                       </>
                     ) : (
                       <>
                         Войти
-                        <ArrowRight className="ml-2 h-5 w-5" />
+                        <ArrowRight className="ml-2 h-4 w-4" />
                       </>
                     )}
                   </Button>
                 </form>
 
-                {/* Telegram Auth Button */}
                 <div className="space-y-3">
                   <div className="relative">
                     <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-gray-200 dark:border-gray-600" />
+                      <div className="w-full border-t border-border" />
                     </div>
                     <div className="relative flex justify-center text-sm">
-                      <span className="px-4 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">
-                        Или
-                      </span>
+                      <span className="px-4 bg-card text-muted-foreground">Или</span>
                     </div>
                   </div>
 
                   <div className="space-y-2">
                     <Link href="/auth/telegram-widget">
-                      <Button 
-                        type="button"
-                        variant="outline" 
-                        className="w-full h-12 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200"
-                      >
-                        <MessageCircle className="mr-2 h-5 w-5" />
+                      <Button type="button" variant="outline" className="w-full h-11 text-primary border-primary/30 hover:bg-primary/5">
+                        <MessageCircle className="mr-2 h-4 w-4" />
                         Войти через Telegram
                       </Button>
                     </Link>
-                    
+
                     <Link href="/auth/telegram">
-                      <Button 
-                        type="button"
-                        variant="ghost" 
-                        className="w-full h-10 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-                      >
+                      <Button type="button" variant="ghost" className="w-full h-9 text-sm text-muted-foreground">
                         Telegram Web App
                       </Button>
                     </Link>
@@ -289,20 +230,15 @@ export default function LoginPage() {
 
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-200 dark:border-gray-600" />
+                    <div className="w-full border-t border-border" />
                   </div>
                   <div className="relative flex justify-center text-sm">
-                    <span className="px-4 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">
-                      Нет аккаунта?
-                    </span>
+                    <span className="px-4 bg-card text-muted-foreground">Нет аккаунта?</span>
                   </div>
                 </div>
 
                 <div className="text-center">
-                  <Link
-                    href="/auth/register"
-                    className="inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors hover:underline"
-                  >
+                  <Link href="/auth/register" className="inline-flex items-center text-sm font-medium text-primary hover:underline">
                     Создать новый аккаунт
                     <ArrowRight className="ml-1 h-4 w-4" />
                   </Link>
