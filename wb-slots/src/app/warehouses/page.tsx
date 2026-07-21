@@ -205,12 +205,12 @@ export default function WarehousesPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="min-h-screen">
         <div className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-center min-h-[400px]">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-              <p className="text-gray-600 dark:text-gray-400">Загрузка справочника складов...</p>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Загрузка справочника складов...</p>
             </div>
           </div>
         </div>
@@ -219,19 +219,19 @@ export default function WarehousesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <Warehouse className="w-6 h-6 text-white" />
+            <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+              <Warehouse className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-3xl font-bold text-foreground">
                 Справочник складов Wildberries
               </h1>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-muted-foreground">
                 Официальный справочник всех складов WB
               </p>
             </div>
@@ -239,38 +239,38 @@ export default function WarehousesPage() {
 
           {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
+            <Card className="border border-border/60">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Всего складов</p>
-                    <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{stats.total}</p>
+                    <p className="text-sm font-medium text-muted-foreground">Всего складов</p>
+                    <p className="text-2xl font-bold text-foreground">{stats.total}</p>
                   </div>
-                  <Building className="w-8 h-8 text-blue-500" />
+                  <Building className="w-8 h-8 text-primary" />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800">
+            <Card className="border border-border/60">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-green-600 dark:text-green-400">Активных</p>
-                    <p className="text-2xl font-bold text-green-900 dark:text-green-100">{stats.active}</p>
+                    <p className="text-sm font-medium text-muted-foreground">Активных</p>
+                    <p className="text-2xl font-bold text-foreground">{stats.active}</p>
                   </div>
-                  <CheckCircle className="w-8 h-8 text-green-500" />
+                  <CheckCircle className="w-8 h-8 text-primary" />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-orange-200 dark:border-orange-800">
+            <Card className="border border-border/60">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Неактивных</p>
-                    <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">{stats.inactive}</p>
+                    <p className="text-sm font-medium text-muted-foreground">Неактивных</p>
+                    <p className="text-2xl font-bold text-foreground">{stats.inactive}</p>
                   </div>
-                  <XCircle className="w-8 h-8 text-orange-500" />
+                  <XCircle className="w-8 h-8 text-muted-foreground" />
                 </div>
               </CardContent>
             </Card>
@@ -302,7 +302,7 @@ export default function WarehousesPage() {
                 <Button
                   onClick={handleSyncWarehouses}
                   disabled={isSyncing}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="bg-primary hover:bg-primary/90"
                 >
                   {isSyncing ? (
                     <>
@@ -319,7 +319,7 @@ export default function WarehousesPage() {
                 <Button
                   onClick={handleAddSelectedToUser}
                   disabled={selectedWarehouses.length === 0 || isAddingToUser}
-                  className="bg-green-600 hover:bg-green-700"
+                  className="bg-primary hover:bg-primary/90"
                 >
                   {isAddingToUser ? (
                     <>
@@ -348,9 +348,9 @@ export default function WarehousesPage() {
 
         {/* Selected Warehouses Info */}
         {selectedWarehouses.length > 0 && (
-          <Alert className="mb-6 border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20">
-            <CheckCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            <AlertDescription className="text-blue-800 dark:text-blue-200">
+          <Alert className="mb-6 border-primary/30 bg-primary/5">
+            <CheckCircle className="h-4 w-4 text-primary" />
+            <AlertDescription className="text-foreground">
               Выбрано складов: {selectedWarehouses.length}. 
               Нажмите "Добавить в список" чтобы добавить их в ваш список включенных складов.
             </AlertDescription>
@@ -366,9 +366,9 @@ export default function WarehousesPage() {
         )}
 
         {success && (
-          <Alert className="mb-6 border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20">
+          <Alert className="mb-6 border-green-500/30 bg-green-500/10">
             <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-            <AlertDescription className="text-green-800 dark:text-green-200">
+            <AlertDescription className="text-green-700 dark:text-green-400">
               {success}
             </AlertDescription>
           </Alert>
@@ -388,8 +388,8 @@ export default function WarehousesPage() {
           <CardContent>
             {filteredWarehouses.length === 0 ? (
               <div className="text-center py-8">
-                <Warehouse className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500 dark:text-gray-400">
+                <Warehouse className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
+                <p className="text-muted-foreground">
                   {searchQuery ? 'Склады не найдены' : 'Справочник складов пуст'}
                 </p>
                 {!searchQuery && (
@@ -406,16 +406,16 @@ export default function WarehousesPage() {
                     key={warehouse.id}
                     className={`p-4 border rounded-lg transition-all duration-200 ${
                       selectedWarehouses.includes(warehouse.id)
-                        ? 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-900/20'
-                        : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                        ? 'border-primary/40 bg-primary/5'
+                        : 'border-border/60 hover:bg-muted/50'
                     }`}
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
-                        <h3 className="font-medium text-gray-900 dark:text-white mb-1">
+                        <h3 className="font-medium text-foreground mb-1">
                           {warehouse.name}
                         </h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-sm text-muted-foreground">
                           ID: {warehouse.id}
                         </p>
                       </div>
@@ -449,15 +449,15 @@ export default function WarehousesPage() {
 
                     {/* Capabilities */}
                     <div className="flex items-center gap-3 mb-3 text-xs">
-                      <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                      <span className="flex items-center gap-1 text-muted-foreground">
                         <Package className="w-3 h-3" />
                         Короба
                       </span>
-                      <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                      <span className="flex items-center gap-1 text-muted-foreground">
                         <Database className="w-3 h-3" />
                         Монопаллеты
                       </span>
-                      <span className="flex items-center gap-1 text-purple-600 dark:text-purple-400">
+                      <span className="flex items-center gap-1 text-muted-foreground">
                         <Shield className="w-3 h-3" />
                         Суперсейф
                       </span>
@@ -496,20 +496,20 @@ export default function WarehousesPage() {
                           onClick={() => handleToggleWarehouseSelection(warehouse.id)}
                           className={`p-1 h-8 w-8 ${
                             selectedWarehouses.includes(warehouse.id)
-                              ? 'text-blue-600 bg-blue-100 dark:bg-blue-900/20'
-                              : 'text-gray-400 hover:text-gray-600'
+                              ? 'text-primary bg-primary/10'
+                              : 'text-muted-foreground hover:text-foreground'
                           }`}
                         >
                           {selectedWarehouses.includes(warehouse.id) ? (
                             <CheckCircle className="w-4 h-4" />
                           ) : (
-                            <div className="w-4 h-4 border-2 border-gray-300 dark:border-gray-600 rounded-full" />
+                            <div className="w-4 h-4 border-2 border-border rounded-full" />
                           )}
                         </Button>
                       </div>
                     </div>
 
-                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                    <div className="text-xs text-muted-foreground/70 mt-2">
                       Обновлен: {new Date(warehouse.updatedAt).toLocaleDateString('ru-RU')}
                     </div>
                   </div>

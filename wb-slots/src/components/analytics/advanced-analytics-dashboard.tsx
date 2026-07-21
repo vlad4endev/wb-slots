@@ -101,8 +101,8 @@ export function AdvancedAnalyticsDashboard({
           {[...Array(4)].map((_, i) => (
             <Card key={i} className="animate-pulse">
               <CardContent className="p-6">
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
-                <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+                <div className="h-8 bg-muted rounded w-1/2"></div>
               </CardContent>
             </Card>
           ))}
@@ -117,7 +117,7 @@ export function AdvancedAnalyticsDashboard({
         <CardContent className="p-6 text-center">
           <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">Данные недоступны</h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
+          <p className="text-muted-foreground mb-4">
             Не удалось загрузить аналитические данные
           </p>
           <Button onClick={handleRefresh} disabled={refreshing}>
@@ -147,8 +147,8 @@ export function AdvancedAnalyticsDashboard({
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{title}</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
+              <p className="text-sm font-medium text-muted-foreground">{title}</p>
+              <p className="text-2xl font-bold text-foreground">{value}</p>
               {change !== undefined && (
                 <div className="flex items-center mt-1">
                   {trend === 'up' ? (
@@ -156,14 +156,14 @@ export function AdvancedAnalyticsDashboard({
                   ) : trend === 'down' ? (
                     <TrendingDown className="w-4 h-4 text-red-500 mr-1" />
                   ) : null}
-                  <span className={`text-sm ${trend === 'up' ? 'text-green-600' : trend === 'down' ? 'text-red-600' : 'text-gray-600'}`}>
+                  <span className={`text-sm ${trend === 'up' ? 'text-green-600' : trend === 'down' ? 'text-red-600' : 'text-muted-foreground'}`}>
                     {change > 0 ? '+' : ''}{change}%
                   </span>
                 </div>
               )}
             </div>
-            <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">
-              <Icon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            <div className="p-3 bg-primary/10 rounded-lg">
+              <Icon className="w-6 h-6 text-primary" />
             </div>
           </div>
         </CardContent>
@@ -176,8 +176,8 @@ export function AdvancedAnalyticsDashboard({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Аналитика</h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <h1 className="text-2xl font-bold text-foreground">Аналитика</h1>
+          <p className="text-muted-foreground">
             Детальная статистика и производительность системы
           </p>
         </div>
@@ -264,10 +264,10 @@ export function AdvancedAnalyticsDashboard({
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-64 flex items-center justify-center bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div className="h-64 flex items-center justify-center bg-muted/50 rounded-lg">
                     <div className="text-center">
-                      <BarChart3 className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                      <p className="text-gray-600 dark:text-gray-400">График будет здесь</p>
+                      <BarChart3 className="w-12 h-12 text-muted-foreground/60 mx-auto mb-2" />
+                      <p className="text-muted-foreground">График будет здесь</p>
                     </div>
                   </div>
                 </CardContent>
@@ -291,7 +291,7 @@ export function AdvancedAnalyticsDashboard({
                       <div key={warehouse.name} className="space-y-2">
                         <div className="flex justify-between items-center">
                           <span className="text-sm font-medium">{warehouse.name}</span>
-                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                          <span className="text-sm text-muted-foreground">
                             {warehouse.successRate}%
                           </span>
                         </div>
@@ -315,10 +315,10 @@ export function AdvancedAnalyticsDashboard({
                 <CardContent>
                   <div className="space-y-3">
                     {data.performance.byWarehouse.map((warehouse) => (
-                      <div key={warehouse.name} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <div key={warehouse.name} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                         <div>
                           <p className="font-medium">{warehouse.name}</p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                          <p className="text-sm text-muted-foreground">
                             {warehouse.totalAttempts} попыток
                           </p>
                         </div>
@@ -340,10 +340,10 @@ export function AdvancedAnalyticsDashboard({
                 <CardContent>
                   <div className="space-y-3">
                     {data.performance.byTimeSlot.map((slot) => (
-                      <div key={slot.time} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <div key={slot.time} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                         <div>
                           <p className="font-medium">{slot.time}</p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                          <p className="text-sm text-muted-foreground">
                             {slot.totalAttempts} попыток
                           </p>
                         </div>
@@ -365,10 +365,10 @@ export function AdvancedAnalyticsDashboard({
                 <CardContent>
                   <div className="space-y-3">
                     {data.performance.byTask.map((task) => (
-                      <div key={task.name} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <div key={task.name} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                         <div>
                           <p className="font-medium">{task.name}</p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                          <p className="text-sm text-muted-foreground">
                             {task.totalAttempts} попыток
                           </p>
                         </div>
@@ -411,7 +411,7 @@ export function AdvancedAnalyticsDashboard({
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <p className="font-medium">{alert.message}</p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          <p className="text-sm text-muted-foreground mt-1">
                             {new Date(alert.timestamp).toLocaleString()}
                           </p>
                         </div>
@@ -443,19 +443,19 @@ export function AdvancedAnalyticsDashboard({
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                      <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
+                    <div className="p-4 bg-muted/50 rounded-lg border border-border/60">
+                      <h4 className="font-medium text-foreground mb-2">
                         Оптимальное время поиска
                       </h4>
-                      <p className="text-sm text-blue-700 dark:text-blue-300">
+                      <p className="text-sm text-muted-foreground">
                         Лучшие результаты показывают утренние часы (8:00-10:00)
                       </p>
                     </div>
-                    <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                      <h4 className="font-medium text-green-900 dark:text-green-100 mb-2">
+                    <div className="p-4 bg-muted/50 rounded-lg border border-border/60">
+                      <h4 className="font-medium text-foreground mb-2">
                         Эффективные склады
                       </h4>
-                      <p className="text-sm text-green-700 dark:text-green-300">
+                      <p className="text-sm text-muted-foreground">
                         Склады в Москве показывают стабильно высокие результаты
                       </p>
                     </div>
@@ -474,19 +474,19 @@ export function AdvancedAnalyticsDashboard({
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                      <h4 className="font-medium text-purple-900 dark:text-purple-100 mb-2">
+                    <div className="p-4 bg-muted/50 rounded-lg border border-border/60">
+                      <h4 className="font-medium text-foreground mb-2">
                         Ожидаемый рост
                       </h4>
-                      <p className="text-sm text-purple-700 dark:text-purple-300">
+                      <p className="text-sm text-muted-foreground">
                         На следующей неделе ожидается увеличение доступных слотов на 15%
                       </p>
                     </div>
-                    <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-                      <h4 className="font-medium text-orange-900 dark:text-orange-100 mb-2">
+                    <div className="p-4 bg-muted/50 rounded-lg border border-border/60">
+                      <h4 className="font-medium text-foreground mb-2">
                         Пиковая нагрузка
                       </h4>
-                      <p className="text-sm text-orange-700 dark:text-orange-300">
+                      <p className="text-sm text-muted-foreground">
                         Пятница 14:00-16:00 - время максимальной активности
                       </p>
                     </div>
