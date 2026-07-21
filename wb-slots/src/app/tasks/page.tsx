@@ -8,32 +8,32 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  FiSearch as Search,
-  FiPlus as Plus,
-  FiPlay as Play,
-  FiPause as Pause,
-  FiSquare as Square,
-  FiEdit as Edit,
-  FiTrash2 as Trash2,
-  FiEye as Eye,
-  FiFilter as Filter,
-  FiRefreshCw as RefreshCw,
-  FiLoader as Loader2,
-  FiCheckCircle as CheckCircle,
-  FiXCircle as XCircle,
-  FiClock as Clock,
-  FiAlertTriangle as AlertTriangle,
-  FiActivity as Activity,
-  FiBarChart as BarChart3,
-  FiCalendar as Calendar,
-  FiMapPin as Warehouse,
-  FiZap as Zap,
-  FiTarget as Target,
-  FiTrendingUp as TrendingUp,
-  FiUsers as Users,
-  FiSettings as Settings,
-  FiMoreHorizontal as MoreHorizontal
-} from 'react-icons/fi';
+  Search,
+  Plus,
+  Play,
+  Pause,
+  Square,
+  Edit,
+  Trash2,
+  Eye,
+  Filter,
+  RefreshCw,
+  Loader2,
+  CheckCircle,
+  XCircle,
+  Clock,
+  AlertTriangle,
+  Activity,
+  BarChart3,
+  Calendar,
+  MapPin as Warehouse,
+  Zap,
+  Target,
+  TrendingUp,
+  Users,
+  Settings,
+  MoreHorizontal,
+} from 'lucide-react';
 import Link from 'next/link';
 import DashboardLayout from '@/app/dashboard-layout';
 import CreateTaskModal from '@/components/create-task-modal';
@@ -249,7 +249,7 @@ export default function TasksPage() {
     if (task.enabled) {
       return <CheckCircle className="w-4 h-4 text-green-500" />;
     } else {
-      return <XCircle className="w-4 h-4 text-gray-500" />;
+      return <XCircle className="w-4 h-4 text-muted-foreground" />;
     }
   };
 
@@ -257,7 +257,7 @@ export default function TasksPage() {
     if (task.enabled) {
       return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300';
     } else {
-      return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300';
+      return 'bg-muted text-muted-foreground';
     }
   };
 
@@ -279,9 +279,9 @@ export default function TasksPage() {
         return { icon: <XCircle className="w-4 h-4 text-red-500" />, text: 'Ошибка', color: 'text-red-600' };
       case 'running':
       case 'RUNNING':
-        return { icon: <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />, text: 'Выполняется', color: 'text-blue-600' };
+        return { icon: <Loader2 className="w-4 h-4 text-primary animate-spin" />, text: 'Выполняется', color: 'text-primary' };
       default:
-        return { icon: <Clock className="w-4 h-4 text-gray-500" />, text: 'Ожидание', color: 'text-gray-600' };
+        return { icon: <Clock className="w-4 h-4 text-muted-foreground" />, text: 'Ожидание', color: 'text-muted-foreground' };
     }
   };
 
@@ -292,8 +292,8 @@ export default function TasksPage() {
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
-            <p className="text-gray-600 dark:text-gray-400">Загрузка задач...</p>
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
+            <p className="text-muted-foreground">Загрузка задач...</p>
           </div>
         </div>
       </DashboardLayout>
@@ -302,16 +302,16 @@ export default function TasksPage() {
 
   return (
     <DashboardLayout>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="min-h-screen">
         {/* Header */}
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="bg-card border-b border-border/60">
           <div className="px-6 py-4">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                <h1 className="text-2xl font-bold text-foreground">
                   Поиск слотов Wildberries
                 </h1>
-                <p className="text-gray-600 dark:text-gray-400 mt-1">
+                <p className="text-muted-foreground mt-1">
                   Управление задачами и поиск доступных слотов
                 </p>
               </div>
@@ -347,75 +347,27 @@ export default function TasksPage() {
             <TabsContent value="tasks" className="space-y-6">
               {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Всего задач</p>
-                    <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{stats.total}</p>
+            {[
+              { label: 'Всего задач', value: stats.total, icon: Target },
+              { label: 'Активные', value: stats.active, icon: Activity },
+              { label: 'Успешные', value: stats.successful, icon: CheckCircle },
+              { label: 'Всего запусков', value: stats.totalRuns, icon: BarChart3 },
+              { label: 'Успешные поиски', value: stats.totalSuccessCount, icon: Target },
+            ].map((card) => (
+              <Card key={card.label} className="border border-border/60 shadow-sm">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">{card.label}</p>
+                      <p className="text-2xl font-bold text-foreground mt-1">{card.value}</p>
+                    </div>
+                    <div className="w-11 h-11 bg-primary/10 rounded-xl flex items-center justify-center">
+                      <card.icon className="w-5 h-5 text-primary" />
+                    </div>
                   </div>
-                  <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
-                    <Target className="w-6 h-6 text-white" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-green-600 dark:text-green-400">Активные</p>
-                    <p className="text-2xl font-bold text-green-900 dark:text-green-100">{stats.active}</p>
-                  </div>
-                  <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
-                    <Activity className="w-6 h-6 text-white" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Успешные</p>
-                    <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">{stats.successful}</p>
-                  </div>
-                  <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
-                    <CheckCircle className="w-6 h-6 text-white" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-orange-200 dark:border-orange-800">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Всего запусков</p>
-                    <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">{stats.totalRuns}</p>
-                  </div>
-                  <div className="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center">
-                    <BarChart3 className="w-6 h-6 text-white" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 border-emerald-200 dark:border-emerald-800">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">Успешные поиски</p>
-                    <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">{stats.totalSuccessCount}</p>
-                  </div>
-                  <div className="w-12 h-12 bg-emerald-500 rounded-lg flex items-center justify-center">
-                    <Target className="w-6 h-6 text-white" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            ))}
           </div>
 
           {/* Success Rate */}
@@ -432,10 +384,10 @@ export default function TasksPage() {
             <CardContent>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <span className="text-sm font-medium text-foreground">
                     {successRate.toFixed(1)}% успешных задач
                   </span>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                  <span className="text-sm text-muted-foreground">
                     {stats.successful} из {stats.total}
                   </span>
                 </div>
@@ -456,7 +408,7 @@ export default function TasksPage() {
               <div className="flex flex-col md:flex-row gap-4">
                 <div className="flex-1">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground/60 w-4 h-4" />
                     <Input
                       placeholder="Поиск по названию или описанию..."
                       value={searchQuery}
@@ -504,11 +456,11 @@ export default function TasksPage() {
             <CardContent>
               {filteredTasks.length === 0 ? (
                 <div className="text-center py-12">
-                  <Target className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  <Target className="w-12 h-12 text-muted-foreground/60 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-foreground mb-2">
                     {searchQuery || statusFilter !== 'all' ? 'Задачи не найдены' : 'Нет задач'}
                   </h3>
-                  <p className="text-gray-500 dark:text-gray-400 mb-6">
+                  <p className="text-muted-foreground mb-6">
                     {searchQuery || statusFilter !== 'all' 
                       ? 'Попробуйте изменить фильтры или поисковый запрос'
                       : 'Создайте первую задачу для поиска слотов'
@@ -527,11 +479,11 @@ export default function TasksPage() {
                     return (
                       <div
                         key={task.id}
-                        className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
+                        className="flex items-center justify-between p-4 bg-muted/40 rounded-xl border border-border/60 hover:shadow-md transition-shadow"
                       >
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
-                            <h3 className="font-medium text-gray-900 dark:text-white">
+                            <h3 className="font-medium text-foreground">
                               #{task.taskNumber} {task.name}
                             </h3>
                             <Badge
@@ -542,7 +494,7 @@ export default function TasksPage() {
                               {task.enabled ? "Активна" : "Неактивна"}
                             </Badge>
                             {task.autoBook && (
-                              <Badge variant="outline" className="text-blue-600 border-blue-200">
+                              <Badge variant="outline" className="text-primary border-primary/30">
                                 <Zap className="w-3 h-3 mr-1" />
                                 Автобронирование
                               </Badge>
@@ -555,11 +507,11 @@ export default function TasksPage() {
                             )}
                           </div>
                           {task.description && (
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                            <p className="text-sm text-muted-foreground mb-2">
                               {task.description}
                             </p>
                           )}
-                          <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <Clock className="w-3 h-3" />
                               {task.scheduleCron ? 'По расписанию' : 'Ручной запуск'}
@@ -606,7 +558,7 @@ export default function TasksPage() {
                               )}
                             </Button>
                           ) : task.status === 'COMPLETED' || task.status === 'SUCCESS' ? (
-                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                            <div className="text-sm text-muted-foreground">
                               Завершена
                             </div>
                           ) : (
