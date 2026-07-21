@@ -13,7 +13,6 @@ import {
   FiClock as Clock,
   FiAlertTriangle as AlertTriangle,
   FiActivity as Activity,
-  FiBarChart3 as BarChart3,
   FiTrendingUp as TrendingUp,
   FiUsers as Users,
   FiTarget as Target,
@@ -154,7 +153,7 @@ export default function AutoBookingPage() {
       case 'pending':
         return <Clock className="w-4 h-4 text-yellow-500" />;
       default:
-        return <AlertCircle className="w-4 h-4 text-gray-500" />;
+        return <AlertCircle className="w-4 h-4 text-muted-foreground" />;
     }
   };
 
@@ -189,8 +188,8 @@ export default function AutoBookingPage() {
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
-            <p className="text-gray-600 dark:text-gray-400">Загрузка данных автобронирования...</p>
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
+            <p className="text-muted-foreground">Загрузка данных автобронирования...</p>
           </div>
         </div>
       </DashboardLayout>
@@ -199,20 +198,20 @@ export default function AutoBookingPage() {
 
   return (
     <DashboardLayout>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="min-h-screen">
         {/* Header */}
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="bg-card border-b border-border/60">
           <div className="px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-lg flex items-center justify-center">
-                  <Zap className="w-6 h-6 text-white" />
+                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <Zap className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  <h1 className="text-2xl font-bold text-foreground">
                     Автобронирование
                   </h1>
-                  <p className="text-gray-600 dark:text-gray-400">
+                  <p className="text-muted-foreground">
                     Управление автоматическим бронированием слотов
                   </p>
                 </div>
@@ -261,11 +260,11 @@ export default function AutoBookingPage() {
                     <XCircle className="w-6 h-6 text-red-500" />
                   )}
                   <div>
-                    <p className="font-medium text-gray-900 dark:text-white">
+                    <p className="font-medium text-foreground">
                       {wbAuthStatus.isAuthenticated ? 'Авторизован' : 'Не авторизован'}
                     </p>
                     {wbAuthStatus.userInfo && (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                      <p className="text-sm text-muted-foreground">
                         {wbAuthStatus.userInfo.name} ({wbAuthStatus.userInfo.role})
                       </p>
                     )}
@@ -273,12 +272,12 @@ export default function AutoBookingPage() {
                 </div>
                 <div className="text-right">
                   {wbAuthStatus.lastLogin && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-muted-foreground">
                       Последний вход: {new Date(wbAuthStatus.lastLogin).toLocaleString('ru-RU')}
                     </p>
                   )}
                   {wbAuthStatus.sessionExpires && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-muted-foreground">
                       Сессия до: {new Date(wbAuthStatus.sessionExpires).toLocaleString('ru-RU')}
                     </p>
                   )}
@@ -292,7 +291,7 @@ export default function AutoBookingPage() {
                     Для работы автобронирования необходимо авторизоваться в ЛК WB. 
                     <button 
                       onClick={() => setShowAuthPopup(true)}
-                      className="text-blue-600 hover:underline ml-1"
+                      className="text-primary hover:underline ml-1"
                     >
                       Перейти к авторизации
                     </button>
@@ -312,69 +311,69 @@ export default function AutoBookingPage() {
 
           {/* Booking Statistics */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800">
+            <Card className="border border-border/60">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-green-600 dark:text-green-400">Успешные бронирования</p>
-                    <p className="text-2xl font-bold text-green-900 dark:text-green-100">{bookingStats.successfulBookings}</p>
-                    <p className="text-xs text-green-700 dark:text-green-300">
+                    <p className="text-sm font-medium text-muted-foreground">Успешные бронирования</p>
+                    <p className="text-2xl font-bold text-foreground">{bookingStats.successfulBookings}</p>
+                    <p className="text-xs text-muted-foreground">
                       {bookingStats.successRate.toFixed(1)}% успешности
                     </p>
                   </div>
-                  <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
-                    <CheckCircle className="w-6 h-6 text-white" />
+                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <CheckCircle className="w-6 h-6 text-primary" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
+            <Card className="border border-border/60">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Всего попыток</p>
-                    <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{bookingStats.totalAttempts}</p>
-                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                    <p className="text-sm font-medium text-muted-foreground">Всего попыток</p>
+                    <p className="text-2xl font-bold text-foreground">{bookingStats.totalAttempts}</p>
+                    <p className="text-xs text-muted-foreground">
                       {bookingStats.failedBookings} неудачных
                     </p>
                   </div>
-                  <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
-                    <Target className="w-6 h-6 text-white" />
+                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <Target className="w-6 h-6 text-primary" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800">
+            <Card className="border border-border/60">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Забронировано слотов</p>
-                    <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">{bookingStats.totalSlotsBooked}</p>
-                    <p className="text-xs text-purple-700 dark:text-purple-300">
+                    <p className="text-sm font-medium text-muted-foreground">Забронировано слотов</p>
+                    <p className="text-2xl font-bold text-foreground">{bookingStats.totalSlotsBooked}</p>
+                    <p className="text-xs text-muted-foreground">
                       {bookingStats.averageBookingTime}с среднее время
                     </p>
                   </div>
-                  <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
-                    <Package className="w-6 h-6 text-white" />
+                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <Package className="w-6 h-6 text-primary" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-orange-200 dark:border-orange-800">
+            <Card className="border border-border/60">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Сегодня</p>
-                    <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">{bookingStats.todayBookings}</p>
-                    <p className="text-xs text-orange-700 dark:text-orange-300">
+                    <p className="text-sm font-medium text-muted-foreground">Сегодня</p>
+                    <p className="text-2xl font-bold text-foreground">{bookingStats.todayBookings}</p>
+                    <p className="text-xs text-muted-foreground">
                       {bookingStats.thisWeekBookings} за неделю
                     </p>
                   </div>
-                  <div className="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center">
-                    <Calendar className="w-6 h-6 text-white" />
+                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <Calendar className="w-6 h-6 text-primary" />
                   </div>
                 </div>
               </CardContent>
@@ -395,10 +394,10 @@ export default function AutoBookingPage() {
             <CardContent>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <span className="text-sm font-medium text-foreground">
                     {bookingStats.successRate.toFixed(1)}% успешных бронирований
                   </span>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                  <span className="text-sm text-muted-foreground">
                     {bookingStats.successfulBookings} из {bookingStats.totalAttempts}
                   </span>
                 </div>
@@ -406,15 +405,15 @@ export default function AutoBookingPage() {
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div>
                     <p className="text-2xl font-bold text-green-600">{bookingStats.successfulBookings}</p>
-                    <p className="text-xs text-gray-500">Успешно</p>
+                    <p className="text-xs text-muted-foreground">Успешно</p>
                   </div>
                   <div>
                     <p className="text-2xl font-bold text-red-600">{bookingStats.failedBookings}</p>
-                    <p className="text-xs text-gray-500">Ошибки</p>
+                    <p className="text-xs text-muted-foreground">Ошибки</p>
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-blue-600">{bookingStats.totalSlotsBooked}</p>
-                    <p className="text-xs text-gray-500">Слотов</p>
+                    <p className="text-2xl font-bold text-primary">{bookingStats.totalSlotsBooked}</p>
+                    <p className="text-xs text-muted-foreground">Слотов</p>
                   </div>
                 </div>
               </div>
@@ -435,11 +434,11 @@ export default function AutoBookingPage() {
             <CardContent>
               {bookingLogs.length === 0 ? (
                 <div className="text-center py-12">
-                  <Database className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  <Database className="w-12 h-12 text-muted-foreground/60 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-foreground mb-2">
                     Нет записей
                   </h3>
-                  <p className="text-gray-500 dark:text-gray-400">
+                  <p className="text-muted-foreground">
                     Логи автобронирования появятся после выполнения задач
                   </p>
                 </div>
@@ -448,12 +447,12 @@ export default function AutoBookingPage() {
                   {bookingLogs.map((log) => (
                     <div
                       key={log.id}
-                      className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
+                      className="flex items-center justify-between p-4 bg-muted/40 rounded-lg border border-border/60"
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
                           {getStatusIcon(log.status)}
-                          <h3 className="font-medium text-gray-900 dark:text-white">
+                          <h3 className="font-medium text-foreground">
                             {log.taskName}
                           </h3>
                           <Badge
@@ -463,10 +462,10 @@ export default function AutoBookingPage() {
                             {getStatusText(log.status)}
                           </Badge>
                         </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                        <p className="text-sm text-muted-foreground mb-2">
                           {log.message}
                         </p>
-                        <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Truck className="w-3 h-3" />
                             {log.slotInfo.warehouse}
@@ -481,7 +480,7 @@ export default function AutoBookingPage() {
                           </span>
                         </div>
                         {log.details && (
-                          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                          <div className="mt-2 text-xs text-muted-foreground space-y-1">
                             {log.details.supplyId && (
                               <div>ID приемки: {log.details.supplyId}</div>
                             )}
@@ -498,7 +497,7 @@ export default function AutoBookingPage() {
                         )}
                       </div>
                       <div className="text-right">
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-muted-foreground">
                           {new Date(log.timestamp).toLocaleString('ru-RU')}
                         </p>
                       </div>
@@ -514,36 +513,36 @@ export default function AutoBookingPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Info className="w-5 h-5 text-blue-500" />
+                  <Info className="w-5 h-5 text-primary" />
                   Как работает автобронирование
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-xs font-bold text-blue-600 dark:text-blue-400">1</span>
+                  <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-xs font-bold text-primary">1</span>
                   </div>
                   <div>
                     <p className="text-sm font-medium">Поиск слотов</p>
-                    <p className="text-xs text-gray-500">Система автоматически ищет доступные слоты по заданным критериям</p>
+                    <p className="text-xs text-muted-foreground">Система автоматически ищет доступные слоты по заданным критериям</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-xs font-bold text-blue-600 dark:text-blue-400">2</span>
+                  <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-xs font-bold text-primary">2</span>
                   </div>
                   <div>
                     <p className="text-sm font-medium">Анализ коэффициентов</p>
-                    <p className="text-xs text-gray-500">Выбираются слоты с наилучшими коэффициентами</p>
+                    <p className="text-xs text-muted-foreground">Выбираются слоты с наилучшими коэффициентами</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-xs font-bold text-blue-600 dark:text-blue-400">3</span>
+                  <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-xs font-bold text-primary">3</span>
                   </div>
                   <div>
                     <p className="text-sm font-medium">Автоматическое бронирование</p>
-                    <p className="text-xs text-gray-500">Система автоматически бронирует найденные слоты</p>
+                    <p className="text-xs text-muted-foreground">Система автоматически бронирует найденные слоты</p>
                   </div>
                 </div>
               </CardContent>
@@ -562,13 +561,13 @@ export default function AutoBookingPage() {
                     <strong>Авторизация в ЛК WB</strong> - обязательна для работы автобронирования
                   </p>
                 </div>
-                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                  <p className="text-sm text-blue-800 dark:text-blue-300">
+                <div className="p-3 bg-muted/50 rounded-lg border border-border/60">
+                  <p className="text-sm text-foreground">
                     <strong>Коэффициенты</strong> - чем меньше, тем выгоднее слот
                   </p>
                 </div>
-                <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                  <p className="text-sm text-green-800 dark:text-green-300">
+                <div className="p-3 bg-muted/50 rounded-lg border border-border/60">
+                  <p className="text-sm text-foreground">
                     <strong>Уведомления</strong> - все результаты приходят в Telegram
                   </p>
                 </div>
