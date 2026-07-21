@@ -1,4 +1,5 @@
 'use client';
+import DebugPageGuard from '@/components/debug-page-guard';
 
 import { useState, useEffect } from 'react';
 
@@ -49,7 +50,7 @@ interface SystemStatus {
   }[];
 }
 
-export default function TestMonitoringPage() {
+function TestMonitoringPageContent() {
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -369,5 +370,12 @@ export default function TestMonitoringPage() {
         )}
       </div>
     </div>
+  );
+}
+export default function TestMonitoringPage() {
+  return (
+    <DebugPageGuard>
+      <TestMonitoringPageContent />
+    </DebugPageGuard>
   );
 }

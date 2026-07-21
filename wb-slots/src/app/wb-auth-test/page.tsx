@@ -1,4 +1,5 @@
 'use client';
+import DebugPageGuard from '@/components/debug-page-guard';
 
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +16,7 @@ import {
   FiAlertTriangle as AlertTriangle
 } from 'react-icons/fi';
 
-export default function WBAuthTestPage() {
+function WBAuthTestPageContent() {
   const [showAuthPopup, setShowAuthPopup] = useState(false);
   const [sessionStatus, setSessionStatus] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -272,5 +273,13 @@ export default function WBAuthTestPage() {
         // userId получится автоматически из сессии
       />
     </div>
+  );
+}
+
+export default function WBAuthTestPage() {
+  return (
+    <DebugPageGuard>
+      <WBAuthTestPageContent />
+    </DebugPageGuard>
   );
 }

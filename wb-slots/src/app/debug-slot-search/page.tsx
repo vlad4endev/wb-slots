@@ -1,4 +1,5 @@
 'use client';
+import DebugPageGuard from '@/components/debug-page-guard';
 
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Search, CheckCircle, XCircle } from 'lucide-react';
 
-export default function DebugSlotSearchPage() {
+function DebugSlotSearchPageContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -216,5 +217,13 @@ export default function DebugSlotSearchPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function DebugSlotSearchPage() {
+  return (
+    <DebugPageGuard>
+      <DebugSlotSearchPageContent />
+    </DebugPageGuard>
   );
 }

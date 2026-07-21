@@ -1,4 +1,5 @@
 'use client';
+import DebugPageGuard from '@/components/debug-page-guard';
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,7 +22,7 @@ interface TokenStatus {
   decryptedLength: number;
 }
 
-export default function DebugTokensPage() {
+function DebugTokensPageContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [tokens, setTokens] = useState<TokenStatus[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -214,5 +215,13 @@ export default function DebugTokensPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function DebugTokensPage() {
+  return (
+    <DebugPageGuard>
+      <DebugTokensPageContent />
+    </DebugPageGuard>
   );
 }

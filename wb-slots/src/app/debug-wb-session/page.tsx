@@ -1,4 +1,5 @@
 'use client';
+import DebugPageGuard from '@/components/debug-page-guard';
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -15,7 +16,7 @@ import {
   FiAlertTriangle as AlertTriangle
 } from 'react-icons/fi';
 
-export default function DebugWBSessionPage() {
+function DebugWBSessionPageContent() {
   const { canAutoBook, isCheckingSession, sessionError, refreshSession } = useAutoBookingCheck();
   const [apiResponse, setApiResponse] = useState<any>(null);
   const [isManualChecking, setIsManualChecking] = useState(false);
@@ -245,3 +246,11 @@ export default function DebugWBSessionPage() {
   );
 }
 
+
+export default function DebugWBSessionPage() {
+  return (
+    <DebugPageGuard>
+      <DebugWBSessionPageContent />
+    </DebugPageGuard>
+  );
+}

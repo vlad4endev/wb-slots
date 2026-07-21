@@ -1,4 +1,5 @@
 'use client';
+import DebugPageGuard from '@/components/debug-page-guard';
 
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,7 +32,7 @@ interface LogEntry {
   service: string;
 }
 
-export default function TestLoggingPage() {
+function TestLoggingPageContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -288,5 +289,12 @@ export default function TestLoggingPage() {
         </Card>
       </div>
     </div>
+  );
+}
+export default function TestLoggingPage() {
+  return (
+    <DebugPageGuard>
+      <TestLoggingPageContent />
+    </DebugPageGuard>
   );
 }

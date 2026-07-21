@@ -1,4 +1,5 @@
 'use client';
+import DebugPageGuard from '@/components/debug-page-guard';
 
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,7 +46,7 @@ interface SecurityEvent {
   timestamp: string;
 }
 
-export default function AdvancedAuthTestPage() {
+function AdvancedAuthTestPageContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -638,5 +639,13 @@ export default function AdvancedAuthTestPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function AdvancedAuthTestPage() {
+  return (
+    <DebugPageGuard>
+      <AdvancedAuthTestPageContent />
+    </DebugPageGuard>
   );
 }

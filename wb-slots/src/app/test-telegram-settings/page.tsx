@@ -1,4 +1,5 @@
 'use client';
+import DebugPageGuard from '@/components/debug-page-guard';
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +17,7 @@ import {
 } from 'react-icons/fi';
 import Link from 'next/link';
 
-export default function TestTelegramSettingsPage() {
+function TestTelegramSettingsPageContent() {
   const [chatId, setChatId] = useState('');
   const [enabled, setEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -306,5 +307,13 @@ export default function TestTelegramSettingsPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function TestTelegramSettingsPage() {
+  return (
+    <DebugPageGuard>
+      <TestTelegramSettingsPageContent />
+    </DebugPageGuard>
   );
 }

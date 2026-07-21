@@ -1,4 +1,5 @@
 'use client';
+import DebugPageGuard from '@/components/debug-page-guard';
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -19,7 +20,7 @@ import {
   FiXCircle as XCircle
 } from 'react-icons/fi';
 
-export default function TestServicesPage() {
+function TestServicesPageContent() {
   const [slotSearchStatus, setSlotSearchStatus] = useState<any>(null);
   const [bookingStatus, setBookingStatus] = useState<any>(null);
   const [telegramStatus, setTelegramStatus] = useState<any>(null);
@@ -497,5 +498,13 @@ export default function TestServicesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function TestServicesPage() {
+  return (
+    <DebugPageGuard>
+      <TestServicesPageContent />
+    </DebugPageGuard>
   );
 }

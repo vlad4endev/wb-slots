@@ -1,4 +1,5 @@
 'use client';
+import DebugPageGuard from '@/components/debug-page-guard';
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,7 +13,7 @@ import {
   FiRefreshCw as RefreshCw
 } from 'react-icons/fi';
 
-export default function DebugAuthPage() {
+function DebugAuthPageContent() {
   const [authStatus, setAuthStatus] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [cookies, setCookies] = useState<string>('');
@@ -168,5 +169,13 @@ export default function DebugAuthPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function DebugAuthPage() {
+  return (
+    <DebugPageGuard>
+      <DebugAuthPageContent />
+    </DebugPageGuard>
   );
 }

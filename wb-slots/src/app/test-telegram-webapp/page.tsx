@@ -1,4 +1,5 @@
 'use client';
+import DebugPageGuard from '@/components/debug-page-guard';
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -89,7 +90,7 @@ declare global {
   }
 }
 
-export default function TestTelegramWebAppPage() {
+function TestTelegramWebAppPageContent() {
   const [isTelegramWebApp, setIsTelegramWebApp] = useState(false);
   const [telegramUser, setTelegramUser] = useState<TelegramUser | null>(null);
   const [webAppData, setWebAppData] = useState<any>(null);
@@ -347,5 +348,12 @@ export default function TestTelegramWebAppPage() {
         )}
       </div>
     </div>
+  );
+}
+export default function TestTelegramWebAppPage() {
+  return (
+    <DebugPageGuard>
+      <TestTelegramWebAppPageContent />
+    </DebugPageGuard>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import ModernNavigation from '@/components/modern-navigation';
 import DashboardHeader from '@/components/dashboard-header';
 
@@ -17,25 +18,39 @@ interface DashboardLayoutProps {
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
+  const router = useRouter();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+
     const checkAuth = async () => {
       try {
         const response = await fetch('/api/auth/me', { credentials: 'include' });
-        if (response.ok) {
-          const data = await response.json();
-          setUser(data.data?.user);
+        if (!response.ok) {
+          // Раньше здесь просто оставляли user = null и всё равно рендерили
+          // весь шелл с навигацией анонимному посетителю.
+          if (!cancelled) router.replace('/');
+          return;
         }
+        const data = await response.json();
+        if (!cancelled) setUser(data.data?.user);
       } catch (error) {
         console.error('Auth check error:', error);
+        if (!cancelled) router.replace('/');
+        return;
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
     checkAuth();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleLogout = async () => {

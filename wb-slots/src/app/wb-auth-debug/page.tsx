@@ -1,4 +1,5 @@
 'use client';
+import DebugPageGuard from '@/components/debug-page-guard';
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 
-export default function WbAuthDebugPage() {
+function WbAuthDebugPageContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<string>('');
   const [error, setError] = useState<string>('');
@@ -207,5 +208,13 @@ export default function WbAuthDebugPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function WbAuthDebugPage() {
+  return (
+    <DebugPageGuard>
+      <WbAuthDebugPageContent />
+    </DebugPageGuard>
   );
 }

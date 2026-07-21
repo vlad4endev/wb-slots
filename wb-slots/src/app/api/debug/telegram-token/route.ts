@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { botSettingsService } from '@/lib/services/bot-settings.service';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
+    // Раньше этот роут отдавал превью системного TELEGRAM_BOT_TOKEN
+    // (общего для всех пользователей секрета) вообще без проверки авторизации.
+    const user = await getCurrentUser(request);
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    if (user.role !== 'DEVELOPER' && user.role !== 'ADMIN') {
+      return NextResponse.json({ success: false, error: 'Access denied. Developer role required.' }, { status: 403 });
+    }
+
     console.log('🔍 Checking Telegram bot token configuration...');
     
     // Check environment variable

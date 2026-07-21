@@ -1,9 +1,10 @@
 'use client';
+import DebugPageGuard from '@/components/debug-page-guard';
 
 import React from 'react';
 import { SimpleBrowserConnection } from '@/components/SimpleBrowserConnection';
 
-export default function BrowserTestPage() {
+function BrowserTestPageContent() {
   return (
     <div className="container mx-auto py-8">
       <div className="text-center space-y-2 mb-8">
@@ -15,5 +16,13 @@ export default function BrowserTestPage() {
 
       <SimpleBrowserConnection />
     </div>
+  );
+}
+
+export default function BrowserTestPage() {
+  return (
+    <DebugPageGuard>
+      <BrowserTestPageContent />
+    </DebugPageGuard>
   );
 }

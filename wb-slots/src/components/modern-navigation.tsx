@@ -19,8 +19,7 @@ import {
   FiMessageSquare as MessageSquare,
   FiMessageCircle as MessageCircle,
   FiActivity as Activity,
-  FiShield as Shield,
-  FiDatabase as Database
+  FiShield as Shield
 } from 'react-icons/fi';
 import CreateTaskModal from '@/components/create-task-modal';
 
@@ -88,12 +87,6 @@ const quickActions = [
     name: 'Настройки',
     href: '/settings',
     icon: Settings,
-    variant: 'outline' as const
-  },
-  {
-    name: 'WB Куки',
-    href: '/wb-session/extract-cookies',
-    icon: Database,
     variant: 'outline' as const
   }
 ];
