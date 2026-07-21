@@ -619,7 +619,7 @@ export default function SettingsPage() {
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">Загрузка настроек...</p>
+            <p className="text-muted-foreground">Загрузка настроек...</p>
           </div>
         </div>
       </DashboardLayout>
@@ -629,20 +629,20 @@ export default function SettingsPage() {
   return (
     <ProtectedRoute>
       <DashboardLayout>
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="min-h-screen">
         {/* Header */}
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="bg-card border-b border-border/60">
           <div className="px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                  <Settings className="w-6 h-6 text-white" />
+                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <Settings className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  <h1 className="text-2xl font-bold text-foreground">
                     Настройки системы
                   </h1>
-                  <p className="text-gray-600 dark:text-gray-400">
+                  <p className="text-muted-foreground">
                     Управление профилем, токенами, складами и Telegram
                   </p>
                 </div>
@@ -689,71 +689,71 @@ export default function SettingsPage() {
         <div className="p-6">
           {/* Quick Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
+            <Card className="border border-border/60">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Токены</p>
-                    <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{tokens.length}</p>
-                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                    <p className="text-sm font-medium text-muted-foreground">Токены</p>
+                    <p className="text-2xl font-bold text-foreground">{tokens.length}</p>
+                    <p className="text-xs text-muted-foreground">
                       {(tokens || []).filter(t => t.isActive).length} активных
                     </p>
                   </div>
-                  <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
-                    <Key className="w-6 h-6 text-white" />
+                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <Key className="w-6 h-6 text-primary" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800">
+            <Card className="border border-border/60">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-green-600 dark:text-green-400">Склады</p>
-                    <p className="text-2xl font-bold text-green-900 dark:text-green-100">{warehouses.length}</p>
-                    <p className="text-xs text-green-700 dark:text-green-300">
+                    <p className="text-sm font-medium text-muted-foreground">Склады</p>
+                    <p className="text-2xl font-bold text-foreground">{warehouses.length}</p>
+                    <p className="text-xs text-muted-foreground">
                       {(warehouses || []).filter(w => w.enabled).length} включены
                     </p>
                   </div>
-                  <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
-                    <Warehouse className="w-6 h-6 text-white" />
+                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <Warehouse className="w-6 h-6 text-primary" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800">
+            <Card className="border border-border/60">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Профиль</p>
-                    <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
+                    <p className="text-sm font-medium text-muted-foreground">Профиль</p>
+                    <p className="text-2xl font-bold text-foreground">
                       {profile ? '✓' : '✗'}
                     </p>
-                    <p className="text-xs text-purple-700 dark:text-purple-300">
+                    <p className="text-xs text-muted-foreground">
                       {profile ? 'Настроен' : 'Не настроен'}
                     </p>
                   </div>
-                  <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
-                    <User className="w-6 h-6 text-white" />
+                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <User className="w-6 h-6 text-primary" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-orange-200 dark:border-orange-800">
+            <Card className="border border-border/60">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Система</p>
-                    <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">OK</p>
-                    <p className="text-xs text-orange-700 dark:text-orange-300">
+                    <p className="text-sm font-medium text-muted-foreground">Система</p>
+                    <p className="text-2xl font-bold text-foreground">OK</p>
+                    <p className="text-xs text-muted-foreground">
                       Все сервисы работают
                     </p>
                   </div>
-                  <div className="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center">
-                    <Activity className="w-6 h-6 text-white" />
+                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <Activity className="w-6 h-6 text-primary" />
                   </div>
                 </div>
               </CardContent>
@@ -835,12 +835,12 @@ export default function SettingsPage() {
                               )}
                             </div>
                             <div>
-                              <h4 className="text-xl font-bold text-gray-900 dark:text-white">
+                              <h4 className="text-xl font-bold text-foreground">
                                 {profile.role === 'DEVELOPER' ? 'Разработчик' : 
                                  profile.role === 'ADMIN' ? 'Администратор' : 
                                  'Пользователь'}
                               </h4>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                              <p className="text-sm text-muted-foreground">
                                 {profile.role === 'DEVELOPER' ? 'Максимальные права доступа' :
                                  profile.role === 'ADMIN' ? 'Административные права' :
                                  'Стандартные права пользователя'}
@@ -872,7 +872,7 @@ export default function SettingsPage() {
                         {/* Детальная информация о правах */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <h5 className="font-semibold text-gray-900 dark:text-white mb-2">Основные права:</h5>
+                            <h5 className="font-semibold text-foreground mb-2">Основные права:</h5>
                             <ul className="space-y-1 text-sm">
                               {profile.role === 'DEVELOPER' ? (
                                 <>
@@ -910,15 +910,15 @@ export default function SettingsPage() {
                                 </>
                               ) : (
                                 <>
-                                  <li className="flex items-center text-gray-600 dark:text-gray-400">
+                                  <li className="flex items-center text-muted-foreground">
                                     <CheckCircle className="w-4 h-4 mr-2" />
                                     Создание задач поиска
                                   </li>
-                                  <li className="flex items-center text-gray-600 dark:text-gray-400">
+                                  <li className="flex items-center text-muted-foreground">
                                     <CheckCircle className="w-4 h-4 mr-2" />
                                     Управление складами
                                   </li>
-                                  <li className="flex items-center text-gray-600 dark:text-gray-400">
+                                  <li className="flex items-center text-muted-foreground">
                                     <CheckCircle className="w-4 h-4 mr-2" />
                                     Настройка уведомлений
                                   </li>
@@ -927,22 +927,22 @@ export default function SettingsPage() {
                             </ul>
                           </div>
                           <div>
-                            <h5 className="font-semibold text-gray-900 dark:text-white mb-2">Статус аккаунта:</h5>
+                            <h5 className="font-semibold text-foreground mb-2">Статус аккаунта:</h5>
                             <div className="space-y-2">
                               <div className="flex items-center justify-between">
-                                <span className="text-sm text-gray-600 dark:text-gray-400">Активен:</span>
+                                <span className="text-sm text-muted-foreground">Активен:</span>
                                 <Badge variant={profile.isActive ? "default" : "secondary"} className={profile.isActive ? "bg-green-100 text-green-800" : ""}>
                                   {profile.isActive ? 'Да' : 'Нет'}
                                 </Badge>
                               </div>
                               <div className="flex items-center justify-between">
-                                <span className="text-sm text-gray-600 dark:text-gray-400">Защищен:</span>
+                                <span className="text-sm text-muted-foreground">Защищен:</span>
                                 <Badge variant={profile.isProtected ? "default" : "secondary"} className={profile.isProtected ? "bg-blue-100 text-blue-800" : ""}>
                                   {profile.isProtected ? 'Да' : 'Нет'}
                                 </Badge>
                               </div>
                               <div className="flex items-center justify-between">
-                                <span className="text-sm text-gray-600 dark:text-gray-400">Email подтвержден:</span>
+                                <span className="text-sm text-muted-foreground">Email подтвержден:</span>
                                 <Badge variant={profile.emailVerified ? "default" : "secondary"} className={profile.emailVerified ? "bg-green-100 text-green-800" : ""}>
                                   {profile.emailVerified ? 'Да' : 'Нет'}
                                 </Badge>
@@ -980,7 +980,7 @@ export default function SettingsPage() {
                             id="timezone"
                             value={profileForm.timezone}
                             onChange={(e) => setProfileForm(prev => ({ ...prev, timezone: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-foreground"
                             title="Выберите часовой пояс"
                           >
                             <option value="Europe/Moscow">Москва (UTC+3)</option>
@@ -1054,7 +1054,7 @@ export default function SettingsPage() {
                               id="category"
                               value={newToken.category}
                               onChange={(e) => setNewToken(prev => ({ ...prev, category: e.target.value }))}
-                              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-foreground"
                               title="Выберите категорию токена"
                             >
                               {tokenCategories.map((cat) => (
@@ -1090,7 +1090,7 @@ export default function SettingsPage() {
                           >
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-3">
-                                <h3 className="font-medium text-gray-900 dark:text-white">
+                                <h3 className="font-medium text-foreground">
                                   {tokenCategories.find(cat => cat.value === token.category)?.label}
                                 </h3>
                                 <Badge
@@ -1401,7 +1401,7 @@ export default function SettingsPage() {
                         <div className="space-y-4">
                           <div className="flex items-center justify-between">
                             <div>
-                              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                              <h3 className="text-lg font-medium text-foreground">
                                 Справочник складов WB
                               </h3>
                               <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -1467,7 +1467,7 @@ export default function SettingsPage() {
                               >
                                 <div className="flex items-center justify-between">
                                   <div>
-                                    <p className="font-medium text-gray-900 dark:text-white">
+                                    <p className="font-medium text-foreground">
                                       {warehouse.name}
                                     </p>
                                     <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -1512,7 +1512,7 @@ export default function SettingsPage() {
                             >
                               <div className="flex-1">
                                 <div className="flex items-center gap-3 mb-2">
-                                  <h3 className="font-medium text-gray-900 dark:text-white">
+                                  <h3 className="font-medium text-foreground">
                                     {warehouse.warehouseName}
                                   </h3>
                                   <Badge variant="outline">
@@ -1607,14 +1607,14 @@ export default function SettingsPage() {
                     <CardContent>
                       <div className="space-y-4">
                         {/* Telegram Settings Button */}
-                        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border border-border/60">
                           <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
-                              <MessageCircle className="w-6 h-6 text-white" />
+                            <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                              <MessageCircle className="w-6 h-6 text-primary" />
                             </div>
                             <div>
-                              <h3 className="font-semibold text-gray-900 dark:text-white">Telegram уведомления</h3>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                              <h3 className="font-semibold text-foreground">Telegram уведомления</h3>
+                              <p className="text-sm text-muted-foreground">
                                 Настройка бота, управление пользователями и тестирование
                               </p>
                             </div>
@@ -1646,8 +1646,8 @@ export default function SettingsPage() {
                             {/* Расширенные настройки Telegram - показываются прямо здесь */}
                             <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                               <div>
-                                <h4 className="font-medium text-gray-900 dark:text-white mb-2">Расширенные настройки</h4>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                <h4 className="font-medium text-foreground mb-2">Расширенные настройки</h4>
+                                <p className="text-sm text-muted-foreground mb-4">
                                   Управление токеном бота, шаблонами уведомлений и админскими функциями
                                 </p>
                                 <TelegramSettings showAdminSettings={true} compact={false} />
@@ -1677,7 +1677,7 @@ export default function SettingsPage() {
                               <Bot className="w-5 h-5 text-white" />
                             </div>
                             <div>
-                              <h3 className="font-medium text-gray-900 dark:text-white">WB Авторизация</h3>
+                              <h3 className="font-medium text-foreground">WB Авторизация</h3>
                               <p className="text-sm text-gray-500 dark:text-gray-400">
                                 Настройка авторизации в ЛК WB
                               </p>
