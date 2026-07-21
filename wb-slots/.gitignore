@@ -9,6 +9,9 @@
 # testing
 /coverage
 
+# runtime-generated booking screenshots/reports (debug artifacts, not source)
+/screenshots/
+
 # next.js
 /.next/
 /out/
