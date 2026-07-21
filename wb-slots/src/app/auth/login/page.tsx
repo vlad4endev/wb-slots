@@ -21,9 +21,9 @@ import {
 } from 'lucide-react';
 
 const BENEFITS = [
-  { icon: Zap, gradient: 'from-violet-500 to-fuchsia-500', title: 'Автоматизация', description: 'Полностью автоматический поиск слотов 24/7 с уведомлениями в Telegram' },
-  { icon: Target, gradient: 'from-fuchsia-500 to-pink-500', title: 'Умный поиск', description: 'ИИ анализирует коэффициенты и находит самые выгодные слоты' },
-  { icon: Shield, gradient: 'from-indigo-500 to-violet-500', title: 'Безопасность', description: 'Шифрование данных и безопасная работа с API Wildberries' },
+  { icon: Zap, title: 'Автоматизация', description: 'Полностью автоматический поиск слотов 24/7 с уведомлениями в Telegram' },
+  { icon: Target, title: 'Умный поиск', description: 'ИИ анализирует коэффициенты и находит самые выгодные слоты' },
+  { icon: Shield, title: 'Безопасность', description: 'Шифрование данных и безопасная работа с API Wildberries' },
 ];
 
 export default function LoginPage() {
@@ -96,8 +96,8 @@ export default function LoginPage() {
             <div className="space-y-6">
               {BENEFITS.map((item, i) => (
                 <div key={item.title} className={`flex items-start gap-3 animate-fade-in-delay-${i + 1}`}>
-                  <div className={`w-9 h-9 bg-gradient-to-br ${item.gradient} rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm`}>
-                    <item.icon className="w-4 h-4 text-white" />
+                  <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <item.icon className="w-4 h-4 text-primary" />
                   </div>
                   <div>
                     <h3 className="font-semibold text-foreground">{item.title}</h3>

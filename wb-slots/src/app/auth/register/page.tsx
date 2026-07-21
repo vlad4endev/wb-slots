@@ -22,9 +22,9 @@ import {
 } from 'lucide-react';
 
 const BENEFITS = [
-  { icon: Star, gradient: 'from-violet-500 to-fuchsia-500', title: 'Бесплатная регистрация', description: 'Создайте аккаунт за 2 минуты и начните работу' },
-  { icon: Users, gradient: 'from-fuchsia-500 to-pink-500', title: 'Мультипользовательская система', description: 'Каждый пользователь имеет изолированные данные' },
-  { icon: Lock, gradient: 'from-indigo-500 to-violet-500', title: 'Безопасность данных', description: 'Все данные зашифрованы и защищены' },
+  { icon: Star, title: 'Бесплатная регистрация', description: 'Создайте аккаунт за 2 минуты и начните работу' },
+  { icon: Users, title: 'Мультипользовательская система', description: 'Каждый пользователь имеет изолированные данные' },
+  { icon: Lock, title: 'Безопасность данных', description: 'Все данные зашифрованы и защищены' },
 ];
 
 export default function RegisterPage() {
@@ -121,8 +121,8 @@ export default function RegisterPage() {
           <div className="max-w-md space-y-6">
             {BENEFITS.map((item, i) => (
               <div key={item.title} className={`flex items-start gap-3 animate-fade-in-delay-${i + 1}`}>
-                <div className={`w-9 h-9 bg-gradient-to-br ${item.gradient} rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm`}>
-                  <item.icon className="w-4 h-4 text-white" />
+                <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <item.icon className="w-4 h-4 text-primary" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-foreground">{item.title}</h3>

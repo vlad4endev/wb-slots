@@ -29,25 +29,21 @@ const FEATURES = [
     icon: Zap,
     title: 'Автоматизация',
     description: 'Полностью автоматический поиск слотов 24/7 с уведомлениями в Telegram',
-    gradient: 'from-violet-500 to-fuchsia-500',
   },
   {
     icon: Target,
     title: 'Умный поиск',
     description: 'ИИ анализирует коэффициенты и находит самые выгодные слоты',
-    gradient: 'from-fuchsia-500 to-pink-500',
   },
   {
     icon: Shield,
     title: 'Безопасность',
     description: 'Шифрование данных и безопасная работа с API Wildberries',
-    gradient: 'from-indigo-500 to-violet-500',
   },
   {
     icon: Bell,
     title: 'Уведомления',
     description: 'Получайте мгновенные уведомления о найденных слотах в Telegram',
-    gradient: 'from-pink-500 to-rose-500',
   },
 ];
 
@@ -65,8 +61,10 @@ const STATS = [
 ];
 
 interface HomeUser {
+  id: string;
   name?: string;
   email: string;
+  timezone: string;
 }
 
 export default function HomePage() {
@@ -218,10 +216,8 @@ export default function HomePage() {
               className="border border-border/60 bg-card shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
             >
               <CardContent className="p-6">
-                <div
-                  className={`w-12 h-12 bg-gradient-to-br ${feature.gradient} rounded-xl flex items-center justify-center mb-5 shadow-md`}
-                >
-                  <feature.icon className="w-6 h-6 text-white" />
+                <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mb-5">
+                  <feature.icon className="w-6 h-6 text-primary" />
                 </div>
                 <h3 className="text-base font-semibold text-foreground mb-2">{feature.title}</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>

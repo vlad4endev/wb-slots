@@ -60,17 +60,17 @@ interface Stats {
 }
 
 const STAT_CARDS = [
-  { key: 'totalTasks' as const, label: 'Всего задач', icon: Target, accent: 'text-violet-600 dark:text-violet-400', chip: 'bg-violet-500' },
-  { key: 'activeTasks' as const, label: 'Активные задачи', icon: Activity, accent: 'text-emerald-600 dark:text-emerald-400', chip: 'bg-emerald-500' },
-  { key: 'totalRuns' as const, label: 'Всего запусков', icon: BarChart3, accent: 'text-fuchsia-600 dark:text-fuchsia-400', chip: 'bg-fuchsia-500' },
-  { key: 'foundSlots' as const, label: 'Найдено слотов', icon: TrendingUp, accent: 'text-amber-600 dark:text-amber-400', chip: 'bg-amber-500' },
+  { key: 'totalTasks' as const, label: 'Всего задач', icon: Target },
+  { key: 'activeTasks' as const, label: 'Активные задачи', icon: Activity },
+  { key: 'totalRuns' as const, label: 'Всего запусков', icon: BarChart3 },
+  { key: 'foundSlots' as const, label: 'Найдено слотов', icon: TrendingUp },
 ];
 
 const QUICK_LINKS = [
-  { href: '/analytics', icon: BarChart3, title: 'Аналитика', description: 'Статистика и отчеты', chip: 'bg-violet-500' },
-  { href: '/monitoring', icon: Activity, title: 'Мониторинг', description: 'Производительность', chip: 'bg-fuchsia-500' },
-  { href: '/alerts', icon: Shield, title: 'Алерты', description: 'Уведомления', chip: 'bg-rose-500' },
-  { href: '/settings', icon: Settings, title: 'Настройки', description: 'Конфигурация', chip: 'bg-indigo-500' },
+  { href: '/analytics', icon: BarChart3, title: 'Аналитика', description: 'Статистика и отчеты' },
+  { href: '/monitoring', icon: Activity, title: 'Мониторинг', description: 'Производительность' },
+  { href: '/alerts', icon: Shield, title: 'Алерты', description: 'Уведомления' },
+  { href: '/settings', icon: Settings, title: 'Настройки', description: 'Конфигурация' },
 ];
 
 export default function DashboardPage() {
@@ -184,11 +184,11 @@ export default function DashboardPage() {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className={`text-sm font-medium ${card.accent}`}>{card.label}</p>
+                      <p className="text-sm font-medium text-muted-foreground">{card.label}</p>
                       <p className="text-2xl font-bold text-foreground mt-1">{stats[card.key]}</p>
                     </div>
-                    <div className={`w-11 h-11 ${card.chip} rounded-xl flex items-center justify-center shadow-sm`}>
-                      <card.icon className="w-5 h-5 text-white" />
+                    <div className="w-11 h-11 bg-primary/10 rounded-xl flex items-center justify-center">
+                      <card.icon className="w-5 h-5 text-primary" />
                     </div>
                   </div>
                 </CardContent>
@@ -332,8 +332,8 @@ export default function DashboardPage() {
                 <Link href={link.href}>
                   <CardContent className="p-6">
                     <div className="flex items-center gap-4">
-                      <div className={`w-11 h-11 ${link.chip} rounded-xl flex items-center justify-center shadow-sm flex-shrink-0`}>
-                        <link.icon className="w-5 h-5 text-white" />
+                      <div className="w-11 h-11 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <link.icon className="w-5 h-5 text-primary" />
                       </div>
                       <div className="min-w-0">
                         <h3 className="font-medium text-foreground">{link.title}</h3>
