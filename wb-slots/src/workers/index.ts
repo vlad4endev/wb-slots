@@ -1,6 +1,5 @@
 import { TaskScheduler } from '@/lib/scheduler';
 import { scanSlotsWorker, bookSlotWorker, notifyWorker, monitorWorker } from '@/lib/queue';
-import { UnifiedAutoBookingWorker } from './unified-auto-booking-worker';
 import { SlotSearchWorker } from './slot-search-worker';
 import { createStopTaskWorker } from './stop-task-worker';
 import { createConnection } from '@/lib/queue';
@@ -13,7 +12,6 @@ const scheduler = TaskScheduler.getInstance();
 
 // Initialize workers
 const connection = createConnection();
-const unifiedAutoBookingWorker = new UnifiedAutoBookingWorker(connection);
 const slotSearchWorker = new SlotSearchWorker(connection);
 const stopTaskWorker = createStopTaskWorker();
 
@@ -29,7 +27,6 @@ logger.info('Workers started:', {
     'Book slot worker',
     'Notify worker',
     'Monitor worker',
-    'Unified auto-booking worker',
     'Slot search worker',
     'Stop task worker',
     'Task scheduler'
@@ -40,7 +37,6 @@ logger.info('Workers started:', {
 process.on('SIGINT', async () => {
   logger.info('Received SIGINT, shutting down workers...');
   await scheduler.stop();
-  await unifiedAutoBookingWorker.close();
   await slotSearchWorker.close();
   await stopTaskWorker.close();
   await monitorWorker.close();
@@ -51,7 +47,6 @@ process.on('SIGINT', async () => {
 process.on('SIGTERM', async () => {
   logger.info('Received SIGTERM, shutting down workers...');
   await scheduler.stop();
-  await unifiedAutoBookingWorker.close();
   await slotSearchWorker.close();
   await stopTaskWorker.close();
   await monitorWorker.close();
