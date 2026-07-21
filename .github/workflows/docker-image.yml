@@ -6,7 +6,40 @@ on:
       - main
 
 jobs:
+  quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wb-slots
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: wb-slots/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      # ВАЖНО: next.config.js имеет typescript.ignoreBuildErrors: true, а в проекте
+      # сейчас ~1400 существующих ошибок типов (strict выключен, много `any`).
+      # Пока этот долг не разобран, typecheck здесь информационный (не блокирует сборку),
+      # иначе CI будет красным на каждом коммите независимо от того, что реально изменилось.
+      # Когда типовой долг будет разобран (см. tsconfig.json strict), уберите continue-on-error.
+      - name: Type check (informational — see comment above)
+        run: npx tsc --noEmit
+        continue-on-error: true
+
   build:
+    needs: quality
     runs-on: ubuntu-latest
 
     steps:
@@ -26,8 +59,11 @@ jobs:
       - name: Build and Push Docker image
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: Dockerfile
+          # Dockerfile ожидает, что build context — это сама папка wb-slots/
+          # (COPY package.json ./, COPY . .), а не корень репозитория.
+          # Раньше context/file указывали на несуществующий Dockerfile в корне.
+          context: ./wb-slots
+          file: ./wb-slots/Dockerfile
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/wb-slots-app:latest
           build-args: |
