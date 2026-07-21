@@ -156,8 +156,8 @@ export function PerformanceMonitor({
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <Icon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">{title}</span>
+              <Icon className="w-5 h-5 text-muted-foreground" />
+              <span className="text-sm font-medium text-muted-foreground">{title}</span>
             </div>
             <div className="flex items-center gap-1">
               {trend === 'up' && <TrendingUp className="w-4 h-4 text-red-500" />}
@@ -169,10 +169,10 @@ export function PerformanceMonitor({
             <span className={`text-2xl font-bold ${getStatusColor(value, thresholds).split(' ')[0]}`}>
               {value.toFixed(1)}
             </span>
-            <span className="text-sm text-gray-500">{unit}</span>
+            <span className="text-sm text-muted-foreground">{unit}</span>
           </div>
           {description && (
-            <p className="text-xs text-gray-500 mt-1">{description}</p>
+            <p className="text-xs text-muted-foreground mt-1">{description}</p>
           )}
           <div className="mt-2">
             <Progress 
@@ -192,8 +192,8 @@ export function PerformanceMonitor({
           {[...Array(4)].map((_, i) => (
             <Card key={i} className="animate-pulse">
               <CardContent className="p-4">
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
-                <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+                <div className="h-8 bg-muted rounded w-1/2"></div>
               </CardContent>
             </Card>
           ))}
@@ -208,7 +208,7 @@ export function PerformanceMonitor({
         <CardContent className="p-6 text-center">
           <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">Ошибка мониторинга</h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
+          <p className="text-muted-foreground mb-4">{error}</p>
           <Button onClick={fetchMetrics}>
             <RefreshCw className="w-4 h-4 mr-2" />
             Попробовать снова
@@ -222,9 +222,9 @@ export function PerformanceMonitor({
     return (
       <Card>
         <CardContent className="p-6 text-center">
-          <Activity className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <Activity className="w-12 h-12 text-muted-foreground/60 mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">Нет данных</h3>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-muted-foreground">
             Метрики производительности недоступны
           </p>
         </CardContent>
@@ -237,8 +237,8 @@ export function PerformanceMonitor({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Мониторинг производительности</h2>
-          <p className="text-gray-600 dark:text-gray-400">
+          <h2 className="text-xl font-bold text-foreground">Мониторинг производительности</h2>
+          <p className="text-muted-foreground">
             Отслеживание системы в реальном времени
           </p>
         </div>
@@ -474,12 +474,12 @@ export function PerformanceMonitor({
                             {alert.type === 'critical' ? 'Критический' :
                              alert.type === 'warning' ? 'Предупреждение' : 'Информация'}
                           </Badge>
-                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                          <span className="text-sm text-muted-foreground">
                             {alert.metric}: {alert.value} (порог: {alert.threshold})
                           </span>
                         </div>
                         <p className="font-medium">{alert.message}</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                        <p className="text-sm text-muted-foreground">
                           {new Date(alert.timestamp).toLocaleString()}
                         </p>
                       </div>
@@ -500,7 +500,7 @@ export function PerformanceMonitor({
       )}
 
       {/* Last Update */}
-      <div className="text-center text-sm text-gray-500 dark:text-gray-400">
+      <div className="text-center text-sm text-muted-foreground">
         Последнее обновление: {new Date(metrics.timestamp).toLocaleString()}
         {isRealTime && <span className="ml-2 text-green-600">●</span>}
       </div>

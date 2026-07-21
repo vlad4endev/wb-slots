@@ -213,7 +213,7 @@ export function AlertSystem({ userId, onAlert }: AlertSystemProps) {
               {getSeverityIcon(alert.severity)}
               <div>
                 <h4 className="font-semibold">{alert.ruleName}</h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-muted-foreground">
                   {new Date(alert.timestamp).toLocaleString()}
                 </p>
               </div>
@@ -223,7 +223,7 @@ export function AlertSystem({ userId, onAlert }: AlertSystemProps) {
             </div>
           </div>
           
-          <p className="text-gray-700 dark:text-gray-300 mb-4">{alert.message}</p>
+          <p className="text-foreground mb-4">{alert.message}</p>
           
           <div className="flex items-center gap-2">
             {alert.status === 'active' && (
@@ -274,10 +274,10 @@ export function AlertSystem({ userId, onAlert }: AlertSystemProps) {
                   {rule.enabled ? 'Включено' : 'Отключено'}
                 </Badge>
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+              <p className="text-sm text-muted-foreground mb-2">
                 {rule.description}
               </p>
-              <div className="flex items-center gap-4 text-xs text-gray-500">
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
                 <span>{rule.metric} {rule.condition} {rule.threshold}</span>
                 <span>Срабатываний: {rule.triggerCount}</span>
                 {rule.lastTriggered && (
@@ -303,10 +303,10 @@ export function AlertSystem({ userId, onAlert }: AlertSystemProps) {
           <div className="flex items-center gap-2">
             {getSeverityIcon(rule.severity)}
             <span className="text-sm capitalize">{rule.severity}</span>
-            <span className="text-sm text-gray-500">•</span>
-            <span className="text-sm text-gray-500">Каналов: {rule.channels.length}</span>
-            <span className="text-sm text-gray-500">•</span>
-            <span className="text-sm text-gray-500">Кулдаун: {rule.cooldown}м</span>
+            <span className="text-sm text-muted-foreground">•</span>
+            <span className="text-sm text-muted-foreground">Каналов: {rule.channels.length}</span>
+            <span className="text-sm text-muted-foreground">•</span>
+            <span className="text-sm text-muted-foreground">Кулдаун: {rule.cooldown}м</span>
           </div>
         </CardContent>
       </Card>
@@ -320,8 +320,8 @@ export function AlertSystem({ userId, onAlert }: AlertSystemProps) {
           {[...Array(6)].map((_, i) => (
             <Card key={i} className="animate-pulse">
               <CardContent className="p-4">
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
-                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+                <div className="h-3 bg-muted rounded w-1/2"></div>
               </CardContent>
             </Card>
           ))}
@@ -335,8 +335,8 @@ export function AlertSystem({ userId, onAlert }: AlertSystemProps) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Система алертов</h2>
-          <p className="text-gray-600 dark:text-gray-400">
+          <h2 className="text-xl font-bold text-foreground">Система алертов</h2>
+          <p className="text-muted-foreground">
             Мониторинг и уведомления о критических событиях
           </p>
         </div>
@@ -374,7 +374,7 @@ export function AlertSystem({ userId, onAlert }: AlertSystemProps) {
                   <XCircle className="w-5 h-5 text-red-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Активные</p>
+                  <p className="text-sm text-muted-foreground">Активные</p>
                   <p className="text-xl font-bold">
                     {alerts.filter(a => a.status === 'active').length}
                   </p>
@@ -392,7 +392,7 @@ export function AlertSystem({ userId, onAlert }: AlertSystemProps) {
                   <AlertTriangle className="w-5 h-5 text-yellow-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Подтвержденные</p>
+                  <p className="text-sm text-muted-foreground">Подтвержденные</p>
                   <p className="text-xl font-bold">
                     {alerts.filter(a => a.status === 'acknowledged').length}
                   </p>
@@ -410,7 +410,7 @@ export function AlertSystem({ userId, onAlert }: AlertSystemProps) {
                   <CheckCircle className="w-5 h-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Решенные</p>
+                  <p className="text-sm text-muted-foreground">Решенные</p>
                   <p className="text-xl font-bold">
                     {alerts.filter(a => a.status === 'resolved').length}
                   </p>
@@ -424,11 +424,11 @@ export function AlertSystem({ userId, onAlert }: AlertSystemProps) {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
-                  <Settings className="w-5 h-5 text-blue-600" />
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Settings className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Правила</p>
+                  <p className="text-sm text-muted-foreground">Правила</p>
                   <p className="text-xl font-bold">{rules.length}</p>
                 </div>
               </div>
@@ -467,9 +467,9 @@ export function AlertSystem({ userId, onAlert }: AlertSystemProps) {
             {alerts.length === 0 ? (
               <Card>
                 <CardContent className="p-6 text-center">
-                  <Bell className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <Bell className="w-12 h-12 text-muted-foreground/60 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold mb-2">Нет алертов</h3>
-                  <p className="text-gray-600 dark:text-gray-400">
+                  <p className="text-muted-foreground">
                     Все системы работают нормально
                   </p>
                 </CardContent>
@@ -495,9 +495,9 @@ export function AlertSystem({ userId, onAlert }: AlertSystemProps) {
             {rules.length === 0 ? (
               <Card>
                 <CardContent className="p-6 text-center">
-                  <Settings className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <Settings className="w-12 h-12 text-muted-foreground/60 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold mb-2">Нет правил</h3>
-                  <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  <p className="text-muted-foreground mb-4">
                     Создайте правила для мониторинга системы
                   </p>
                   <Button onClick={() => setShowCreateRule(true)}>
@@ -530,13 +530,13 @@ export function AlertSystem({ userId, onAlert }: AlertSystemProps) {
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        {channel.type === 'email' && <Mail className="w-5 h-5 text-blue-600" />}
-                        {channel.type === 'telegram' && <MessageSquare className="w-5 h-5 text-blue-600" />}
-                        {channel.type === 'webhook' && <Globe className="w-5 h-5 text-green-600" />}
-                        {channel.type === 'browser' && <Bell className="w-5 h-5 text-purple-600" />}
+                        {channel.type === 'email' && <Mail className="w-5 h-5 text-primary" />}
+                        {channel.type === 'telegram' && <MessageSquare className="w-5 h-5 text-primary" />}
+                        {channel.type === 'webhook' && <Globe className="w-5 h-5 text-primary" />}
+                        {channel.type === 'browser' && <Bell className="w-5 h-5 text-primary" />}
                         <div>
                           <h4 className="font-semibold">{channel.name}</h4>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 capitalize">
+                          <p className="text-sm text-muted-foreground capitalize">
                             {channel.type}
                           </p>
                         </div>
@@ -551,7 +551,7 @@ export function AlertSystem({ userId, onAlert }: AlertSystemProps) {
                       </div>
                     </div>
                     
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                    <div className="text-sm text-muted-foreground">
                       {Object.entries(channel.config).map(([key, value]) => (
                         <div key={key} className="flex justify-between">
                           <span>{key}:</span>
